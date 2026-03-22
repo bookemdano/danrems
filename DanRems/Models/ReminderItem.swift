@@ -31,16 +31,40 @@ struct ReminderItem: Identifiable, Hashable, Sendable {
         Color(red: listColorRed, green: listColorGreen, blue: listColorBlue)
     }
 
+    static func safeFrom(_ reminder: EKReminder) -> ReminderItem? {
+        // Guard against reminders with missing essential data
+        guard !reminder.calendarItemIdentifier.isEmpty else { return nil }
+        return from(reminder)
+    }
+
     static func from(_ reminder: EKReminder) -> ReminderItem {
         var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0
-        UIColor(cgColor: reminder.calendar.cgColor).getRed(&r, green: &g, blue: &b, alpha: nil)
+        let uiColor = UIColor(cgColor: reminder.calendar.cgColor)
+        // Convert to sRGB to ensure getRed works regardless of source color space
+        let srgbColor = uiColor.resolvedColor(with: UITraitCollection(userInterfaceStyle: .light))
+        if !srgbColor.getRed(&r, green: &g, blue: &b, alpha: nil) {
+            // Fallback for non-RGB color spaces (grayscale, etc.)
+            var white: CGFloat = 0
+            srgbColor.getWhite(&white, alpha: nil)
+            r = white; g = white; b = white
+        }
+
+        var dueDate: Date?
+        if let components = reminder.dueDateComponents {
+            // Ensure we have a calendar for date conversion
+            var comps = components
+            if comps.calendar == nil {
+                comps.calendar = Calendar.current
+            }
+            dueDate = comps.date
+        }
 
         let rule = reminder.recurrenceRules?.first
         return ReminderItem(
             id: reminder.calendarItemIdentifier,
             title: reminder.title ?? "",
             notes: reminder.notes,
-            dueDate: reminder.dueDateComponents?.date,
+            dueDate: dueDate,
             isCompleted: reminder.isCompleted,
             priority: reminder.priority,
             listName: reminder.calendar.title,

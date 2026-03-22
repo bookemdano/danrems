@@ -28,14 +28,19 @@ final class ReminderService {
         calendars = eventStore.calendars(for: .reminder)
     }
 
+    private struct UncheckedSendableReminders: @unchecked Sendable {
+        let reminders: [EKReminder]
+    }
+
     private func fetchReminderItems(matching predicate: NSPredicate) async -> [ReminderItem] {
         let store = eventStore
-        return await withCheckedContinuation { continuation in
+        let wrapped = await withCheckedContinuation { (continuation: CheckedContinuation<UncheckedSendableReminders, Never>) in
             store.fetchReminders(matching: predicate) { reminders in
-                let items = (reminders ?? []).map { ReminderItem.from($0) }
-                continuation.resume(returning: items)
+                continuation.resume(returning: UncheckedSendableReminders(reminders: reminders ?? []))
             }
         }
+        // Map on main actor where EKReminder access is safe
+        return wrapped.reminders.compactMap { ReminderItem.safeFrom($0) }
     }
 
     func fetchReminders() async {
