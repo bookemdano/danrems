@@ -1,0 +1,22 @@
+name: DanRems
+options:
+  bundleIdPrefix: net.devfirst
+  deploymentTarget:
+    iOS: "26.0"
+  xcodeVersion: "26"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    GENERATE_INFOPLIST_FILE: YES
+    INFOPLIST_KEY_NSRemindersUsageDescription: "DanRems needs access to your reminders to display and manage them."
+targets:
+  DanRems:
+    type: application
+    platform: iOS
+    sources:
+      - DanRems
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: net.devfirst.danrems
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_CFBundleDisplayName: DanRems
