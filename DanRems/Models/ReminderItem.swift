@@ -14,6 +14,7 @@ struct ReminderItem: Identifiable, Hashable, Sendable {
     var listColorRed: CGFloat
     var listColorGreen: CGFloat
     var listColorBlue: CGFloat
+    var completionDate: Date?
     var recurrenceFrequency: EKRecurrenceFrequency?
     var recurrenceInterval: Int?
 
@@ -72,6 +73,7 @@ struct ReminderItem: Identifiable, Hashable, Sendable {
             listColorRed: r,
             listColorGreen: g,
             listColorBlue: b,
+            completionDate: reminder.completionDate,
             recurrenceFrequency: rule?.frequency,
             recurrenceInterval: rule?.interval
         )

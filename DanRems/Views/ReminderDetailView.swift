@@ -6,65 +6,64 @@ struct ReminderDetailView: View {
     @Environment(\.dismiss) private var dismiss
     let reminderID: String
 
-    @State private var showEdit = false
     @State private var showDeleteConfirmation = false
     @State private var errorMessage: String?
+    @State private var toastMessage: String?
+    @State private var loaded = false
+
+    // Editable state
+    @State private var title = ""
+    @State private var selectedCalendarIndex = 0
+    @State private var hasDueDate = true
+    @State private var dueDate = Date()
+    @State private var includeTime = false
+    @State private var notes = ""
+    @State private var priority = 0
+    @State private var recurrenceType: RecurrenceType = .none
+    @State private var recurrenceInterval = 1
+    @State private var showHistory = false
+    @State private var completionHistory: [Date] = []
 
     private var item: ReminderItem? {
         service.getReminder(identifier: reminderID)
     }
 
+    private var nextDueDate: Date? {
+        guard recurrenceType != .none, hasDueDate else { return nil }
+        let cal = Calendar.current
+        return switch recurrenceType {
+        case .none: nil
+        case .daily: cal.date(byAdding: .day, value: recurrenceInterval, to: dueDate)
+        case .weekly: cal.date(byAdding: .weekOfYear, value: recurrenceInterval, to: dueDate)
+        case .monthly: cal.date(byAdding: .month, value: recurrenceInterval, to: dueDate)
+        case .yearly: cal.date(byAdding: .year, value: recurrenceInterval, to: dueDate)
+        }
+    }
+
+    private var hasChanges: Bool {
+        guard let item else { return false }
+        let calendarChanged = service.calendars.indices.contains(selectedCalendarIndex)
+            && service.calendars[selectedCalendarIndex].calendarIdentifier != item.listIdentifier
+        let dueDateChanged: Bool = {
+            if hasDueDate != (item.dueDate != nil) { return true }
+            if hasDueDate, let orig = item.dueDate, dueDate != orig { return true }
+            return false
+        }()
+        let origRecurrence = item.recurrenceFrequency.map { RecurrenceType.from($0) } ?? .none
+        let origInterval = item.recurrenceInterval ?? 1
+        return title != item.title
+            || calendarChanged
+            || dueDateChanged
+            || notes != (item.notes ?? "")
+            || priority != item.priority
+            || recurrenceType != origRecurrence
+            || recurrenceInterval != origInterval
+    }
+
     var body: some View {
         Group {
-            if let item {
-                List {
-                    Section("Details") {
-                        LabeledContent("Title", value: item.title)
-
-                        LabeledContent("List", value: item.listName)
-
-                        if let dueDate = item.dueDate {
-                            LabeledContent("Due Date") {
-                                Text(dueDate, format: .dateTime)
-                            }
-                        }
-
-                        if item.priority > 0 {
-                            LabeledContent("Priority", value: priorityLabel(item.priority))
-                        }
-
-                        LabeledContent("Status", value: item.isCompleted ? "Completed" : "Incomplete")
-                    }
-
-                    if let notes = item.notes, !notes.isEmpty {
-                        Section("Notes") {
-                            Text(notes)
-                        }
-                    }
-
-                    if let freq = item.recurrenceFrequency, let interval = item.recurrenceInterval {
-                        Section("Recurrence") {
-                            Text(recurrenceDescription(freq, interval: interval))
-                        }
-                    }
-
-                    Section {
-                        Button {
-                            try? service.toggleComplete(identifier: item.id)
-                        } label: {
-                            Label(
-                                item.isCompleted ? "Mark Incomplete" : "Mark Complete",
-                                systemImage: item.isCompleted ? "circle" : "checkmark.circle"
-                            )
-                        }
-
-                        Button(role: .destructive) {
-                            showDeleteConfirmation = true
-                        } label: {
-                            Label("Delete Reminder", systemImage: "trash")
-                        }
-                    }
-                }
+            if item != nil {
+                form
             } else {
                 ContentUnavailableView(
                     "Not Found",
@@ -73,14 +72,14 @@ struct ReminderDetailView: View {
                 )
             }
         }
-        .navigationTitle(item?.title ?? "Reminder")
+        .navigationTitle(title.isEmpty ? "Reminder" : title)
         .toolbar {
             if item != nil {
-                Button("Edit") { showEdit = true }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") { save() }
+                        .disabled(!hasChanges || title.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
             }
-        }
-        .sheet(isPresented: $showEdit) {
-            ReminderEditView(mode: .edit(reminderID))
         }
         .confirmationDialog(
             "Delete Reminder",
@@ -107,28 +106,194 @@ struct ReminderDetailView: View {
         } message: {
             if let errorMessage { Text(errorMessage) }
         }
+        .overlay(alignment: .bottom) {
+            if let toastMessage {
+                Text(toastMessage)
+                    .font(.subheadline)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(.thinMaterial, in: Capsule())
+                    .shadow(radius: 4)
+                    .padding(.bottom, 32)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut, value: toastMessage)
+        .onAppear { if !loaded { loadState(); loaded = true } }
     }
 
-    private func priorityLabel(_ priority: Int) -> String {
-        switch priority {
-        case 1: "High"
-        case 5: "Medium"
-        case 9: "Low"
-        default: "None"
+    // MARK: - Form
+
+    private var form: some View {
+        Form {
+            Section("Basic Info") {
+                TextField("Title", text: $title)
+
+                if !service.calendars.isEmpty {
+                    Picker("List", selection: $selectedCalendarIndex) {
+                        ForEach(Array(service.calendars.enumerated()), id: \.offset) { index, cal in
+                            Text(cal.title).tag(index)
+                        }
+                    }
+                }
+            }
+
+            Section("Schedule") {
+                Toggle("Due Date", isOn: $hasDueDate)
+
+                if hasDueDate {
+                    DatePicker(
+                        "Date",
+                        selection: $dueDate,
+                        displayedComponents: includeTime ? [.date, .hourAndMinute] : [.date]
+                    )
+                    Toggle("Include Time", isOn: $includeTime)
+                }
+            }
+
+            Section("Recurrence") {
+                Picker("Repeat", selection: $recurrenceType) {
+                    ForEach(RecurrenceType.allCases) { type in
+                        Text(type.label).tag(type)
+                    }
+                }
+
+                if recurrenceType != .none {
+                    Stepper("Every \(recurrenceInterval) \(recurrenceType.unit)\(recurrenceInterval > 1 ? "s" : "")",
+                            value: $recurrenceInterval, in: 1...999)
+                    if let next = nextDueDate {
+                        LabeledContent("Next Due") {
+                            Text(next, format: .dateTime.month(.abbreviated).day().year())
+                        }
+                    }
+                }
+            }
+
+            Section("Details") {
+                Picker("Priority", selection: $priority) {
+                    Text("None").tag(0)
+                    Text("Low").tag(9)
+                    Text("Medium").tag(5)
+                    Text("High").tag(1)
+                }
+
+                TextField("Notes", text: $notes, axis: .vertical)
+                    .lineLimit(3...6)
+            }
+
+            Section {
+                if let item {
+                    Button {
+                        completeItem(item)
+                    } label: {
+                        Label(
+                            item.isCompleted ? "Mark Incomplete" : "Mark Complete",
+                            systemImage: item.isCompleted ? "circle" : "checkmark.circle"
+                        )
+                    }
+                }
+
+                Button(role: .destructive) {
+                    showDeleteConfirmation = true
+                } label: {
+                    Label("Delete Reminder", systemImage: "trash")
+                }
+            }
+
+            Section {
+                Toggle("Completion History", isOn: $showHistory)
+                    .onChange(of: showHistory) { _, newValue in
+                        if newValue, let item {
+                            Task {
+                                completionHistory = await service.fetchCompletionHistory(
+                                    title: item.title, calendarIdentifier: item.listIdentifier
+                                )
+                            }
+                        }
+                    }
+
+                if showHistory {
+                    if completionHistory.isEmpty {
+                        Text("No completions found")
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(completionHistory, id: \.self) { date in
+                            Text(date.formatted(.dateTime.month(.abbreviated).day().year().hour().minute()))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
         }
     }
 
-    private func recurrenceDescription(_ frequency: EKRecurrenceFrequency, interval: Int) -> String {
-        let freq = switch frequency {
-        case .daily: "day"
-        case .weekly: "week"
-        case .monthly: "month"
-        case .yearly: "year"
-        @unknown default: "period"
+    // MARK: - Actions
+
+    private func loadState() {
+        guard let item = service.getReminder(identifier: reminderID) else { return }
+
+        title = item.title
+        notes = item.notes ?? ""
+        priority = item.priority
+        if let date = item.dueDate {
+            hasDueDate = true
+            dueDate = date
+            let comps = Calendar.current.dateComponents([.hour, .minute], from: date)
+            includeTime = (comps.hour != 0 || comps.minute != 0)
+        } else {
+            hasDueDate = false
         }
-        if interval == 1 {
-            return "Every \(freq)"
+        if let calIndex = service.calendars.firstIndex(where: { $0.calendarIdentifier == item.listIdentifier }) {
+            selectedCalendarIndex = calIndex
         }
-        return "Every \(interval) \(freq)s"
+        if let freq = item.recurrenceFrequency, let interval = item.recurrenceInterval {
+            recurrenceType = RecurrenceType.from(freq)
+            recurrenceInterval = interval
+        } else {
+            recurrenceType = .none
+            recurrenceInterval = 1
+        }
+    }
+
+    private func save() {
+        let calendar = service.calendars[selectedCalendarIndex]
+        let date = hasDueDate ? dueDate : nil
+        let noteText = notes.isEmpty ? nil : notes
+        let rule = recurrenceType.rule(interval: recurrenceInterval)
+
+        do {
+            try service.updateReminder(
+                identifier: reminderID, title: title, calendar: calendar,
+                dueDate: date, includeTime: includeTime,
+                notes: noteText, priority: priority, recurrenceRule: rule
+            )
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func completeItem(_ item: ReminderItem) {
+        if !item.isCompleted {
+            do {
+                let nextDate = try service.completeReminder(identifier: item.id)
+                if let nextDate {
+                    showToast("\(item.title) — next due \(nextDate.formatted(.dateTime.month(.abbreviated).day().year()))")
+                } else {
+                    showToast("\(item.title) completed")
+                }
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        } else {
+            try? service.toggleComplete(identifier: item.id)
+        }
+    }
+
+    private func showToast(_ message: String) {
+        toastMessage = message
+        Task {
+            try? await Task.sleep(for: .seconds(2.5))
+            toastMessage = nil
+        }
     }
 }

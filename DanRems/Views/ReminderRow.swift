@@ -3,11 +3,19 @@ import SwiftUI
 struct ReminderRow: View {
     @Environment(ReminderService.self) private var service
     let item: ReminderItem
+    var showDate = false
+    var showScheduleInfo = false
+    var onComplete: ((String, Date?) -> Void)?
 
     var body: some View {
         HStack(spacing: 12) {
             Button {
-                try? service.toggleComplete(identifier: item.id)
+                if !item.isCompleted, let onComplete {
+                    let nextDate = try? service.completeReminder(identifier: item.id)
+                    onComplete(item.title, nextDate)
+                } else {
+                    try? service.toggleComplete(identifier: item.id)
+                }
             } label: {
                 Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(item.isCompleted ? .gray : .accentColor)
@@ -27,10 +35,22 @@ struct ReminderRow: View {
                         .foregroundStyle(item.isOverdue ? .red : .primary)
                 }
 
-                if let dueDate = item.dueDate {
+                if showDate, let dueDate = item.dueDate {
                     Text(dueDate, style: .date)
                         .font(.caption)
                         .foregroundStyle(item.isOverdue ? .red : .secondary)
+                }
+
+                if showScheduleInfo {
+                    if item.isCompleted, let completionDate = item.completionDate {
+                        Text("Completed \(completionDate.formatted(.dateTime.month(.abbreviated).day().year()))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if let dueDate = item.dueDate {
+                        Text("Due \(dueDate.formatted(.dateTime.month(.abbreviated).day().year()))")
+                            .font(.caption)
+                            .foregroundStyle(item.isOverdue ? .red : .secondary)
+                    }
                 }
             }
         }

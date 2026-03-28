@@ -19,7 +19,7 @@ struct SearchView: View {
 
                 ForEach(results) { item in
                     NavigationLink(value: item) {
-                        ReminderRow(item: item)
+                        ReminderRow(item: item, showScheduleInfo: true)
                     }
                     .swipeActions(edge: .trailing) {
                         Button(role: .destructive) {

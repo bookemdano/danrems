@@ -14,7 +14,7 @@ struct ReminderEditView: View {
 
     @State private var title = ""
     @State private var selectedCalendarIndex = 0
-    @State private var hasDueDate = false
+    @State private var hasDueDate = true
     @State private var dueDate = Date()
     @State private var includeTime = false
     @State private var notes = ""

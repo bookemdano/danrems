@@ -1,5 +1,6 @@
 import EventKit
 import Foundation
+import UserNotifications
 
 @MainActor
 @Observable
@@ -22,6 +23,8 @@ final class ReminderService {
         } catch {
             errorMessage = error.localizedDescription
         }
+        // Request notification permission for delete alerts
+        _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
     }
 
     func loadCalendars() {
@@ -59,6 +62,17 @@ final class ReminderService {
         let predicate = eventStore.predicateForCompletedReminders(
             withCompletionDateStarting: startOfToday,
             ending: endOfToday,
+            calendars: nil
+        )
+        return await fetchReminderItems(matching: predicate)
+    }
+
+    func fetchUpcoming(days: Int) async -> [ReminderItem] {
+        let startOfTomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date().startOfDay)!
+        let endDate = Calendar.current.date(byAdding: .day, value: days, to: Date().endOfDay)!
+        let predicate = eventStore.predicateForIncompleteReminders(
+            withDueDateStarting: startOfTomorrow,
+            ending: endDate,
             calendars: nil
         )
         return await fetchReminderItems(matching: predicate)
@@ -157,12 +171,85 @@ final class ReminderService {
         Task { await fetchReminders() }
     }
 
+    /// Completes a reminder and returns the next due date if it's recurring.
+    func completeReminder(identifier: String) throws -> Date? {
+        guard let reminder = eventStore.calendarItem(withIdentifier: identifier) as? EKReminder else {
+            throw ReminderError.notFound
+        }
+
+        var nextDueDate: Date?
+        if let rule = reminder.recurrenceRules?.first,
+           let comps = reminder.dueDateComponents {
+            var dueDateComps = comps
+            if dueDateComps.calendar == nil { dueDateComps.calendar = Calendar.current }
+            if let currentDue = dueDateComps.date {
+                let cal = Calendar.current
+                nextDueDate = switch rule.frequency {
+                case .daily: cal.date(byAdding: .day, value: rule.interval, to: currentDue)
+                case .weekly: cal.date(byAdding: .weekOfYear, value: rule.interval, to: currentDue)
+                case .monthly: cal.date(byAdding: .month, value: rule.interval, to: currentDue)
+                case .yearly: cal.date(byAdding: .year, value: rule.interval, to: currentDue)
+                @unknown default: nil
+                }
+            }
+        }
+
+        reminder.isCompleted = true
+        try eventStore.save(reminder, commit: true)
+        Task { await fetchReminders() }
+        return nextDueDate
+    }
+
     func deleteReminder(identifier: String) throws {
         guard let reminder = eventStore.calendarItem(withIdentifier: identifier) as? EKReminder else {
             throw ReminderError.notFound
         }
+        let title = reminder.title ?? "Reminder"
         try eventStore.remove(reminder, commit: true)
+        sendDeleteNotification(title: title)
         Task { await fetchReminders() }
+    }
+
+    private func sendDeleteNotification(title: String) {
+        let content = UNMutableNotificationContent()
+        content.title = "Reminder Deleted"
+        content.body = "Deleted \"\(title)\""
+        content.sound = .default
+        let request = UNNotificationRequest(
+            identifier: UUID().uuidString,
+            content: content,
+            trigger: nil // deliver immediately
+        )
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    func moveOverdueToToday() throws {
+        let endOfYesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date().startOfDay)!.endOfDay
+        let todayComponents = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        for item in reminders where item.isOverdue {
+            guard let reminder = eventStore.calendarItem(withIdentifier: item.id) as? EKReminder else { continue }
+            var components = reminder.dueDateComponents ?? DateComponents()
+            components.year = todayComponents.year
+            components.month = todayComponents.month
+            components.day = todayComponents.day
+            reminder.dueDateComponents = components
+            try eventStore.save(reminder, commit: false)
+        }
+        try eventStore.commit()
+        Task { await fetchReminders() }
+    }
+
+    func fetchCompletionHistory(title: String, calendarIdentifier: String) async -> [Date] {
+        let calendar = calendars.first { $0.calendarIdentifier == calendarIdentifier }
+        let cals = calendar.map { [$0] }
+        let predicate = eventStore.predicateForCompletedReminders(
+            withCompletionDateStarting: nil, ending: nil, calendars: cals
+        )
+        let items = await fetchReminderItems(matching: predicate)
+        return items
+            .filter { $0.title == title }
+            .compactMap(\.completionDate)
+            .sorted(by: >)
     }
 
     func getReminder(identifier: String) -> ReminderItem? {
