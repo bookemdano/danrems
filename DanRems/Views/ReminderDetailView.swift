@@ -267,6 +267,7 @@ struct ReminderDetailView: View {
                 dueDate: date, includeTime: includeTime,
                 notes: noteText, priority: priority, recurrenceRule: rule
             )
+            dismiss()
         } catch {
             errorMessage = error.localizedDescription
         }

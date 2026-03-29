@@ -71,11 +71,15 @@ final class ReminderService {
         let startOfTomorrow = Calendar.current.date(byAdding: .day, value: 1, to: Date().startOfDay)!
         let endDate = Calendar.current.date(byAdding: .day, value: days, to: Date().endOfDay)!
         let predicate = eventStore.predicateForIncompleteReminders(
-            withDueDateStarting: startOfTomorrow,
+            withDueDateStarting: nil,
             ending: endDate,
             calendars: nil
         )
-        return await fetchReminderItems(matching: predicate)
+        let all = await fetchReminderItems(matching: predicate)
+        return all.filter { item in
+            guard let due = item.dueDate else { return false }
+            return due >= startOfTomorrow && due <= endDate
+        }
     }
 
     func searchReminders(query: String) async -> [ReminderItem] {
