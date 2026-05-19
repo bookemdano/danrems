@@ -8,6 +8,7 @@ struct ReminderDetailView: View {
     var onComplete: ((String) -> Void)?
 
     @State private var showDeleteConfirmation = false
+    @State private var showNotTodayAlert = false
     @State private var errorMessage: String?
     @State private var toastMessage: String?
     @State private var loaded = false
@@ -185,12 +186,26 @@ struct ReminderDetailView: View {
             Section {
                 if let item {
                     Button {
-                        completeItem(item)
+                        if !item.isCompleted && !item.isDueToday {
+                            showNotTodayAlert = true
+                        } else {
+                            completeItem(item)
+                        }
                     } label: {
                         Label(
                             item.isCompleted ? "Mark Incomplete" : "Mark Complete",
                             systemImage: item.isCompleted ? "circle" : "checkmark.circle"
                         )
+                    }
+                    .confirmationDialog("This item isn't due today.", isPresented: $showNotTodayAlert, titleVisibility: .visible) {
+                        Button("Move to Today & Complete") {
+                            try? service.moveToToday(identifier: item.id)
+                            completeItem(item)
+                        }
+                        Button("Complete Anyway") {
+                            completeItem(item)
+                        }
+                        Button("Cancel", role: .cancel) {}
                     }
                 }
 
@@ -289,6 +304,7 @@ struct ReminderDetailView: View {
             }
         } else {
             try? service.toggleComplete(identifier: item.id)
+            dismiss()
         }
     }
 

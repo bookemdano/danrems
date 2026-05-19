@@ -227,6 +227,20 @@ final class ReminderService {
         UNUserNotificationCenter.current().add(request)
     }
 
+    func moveToToday(identifier: String) throws {
+        guard let reminder = eventStore.calendarItem(withIdentifier: identifier) as? EKReminder else {
+            throw ReminderError.notFound
+        }
+        let todayComponents = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        var components = reminder.dueDateComponents ?? DateComponents()
+        components.year = todayComponents.year
+        components.month = todayComponents.month
+        components.day = todayComponents.day
+        reminder.dueDateComponents = components
+        try eventStore.save(reminder, commit: true)
+        Task { await fetchReminders() }
+    }
+
     func moveOverdueToToday() throws {
         let endOfYesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date().startOfDay)!.endOfDay
         let todayComponents = Calendar.current.dateComponents([.year, .month, .day], from: Date())
@@ -257,6 +271,10 @@ final class ReminderService {
     }
 
     func getReminder(identifier: String) -> ReminderItem? {
+        // Access reminders so @Observable tracks this call and re-renders callers on list changes.
+        if let cached = reminders.first(where: { $0.id == identifier }) {
+            return cached
+        }
         guard let reminder = eventStore.calendarItem(withIdentifier: identifier) as? EKReminder else {
             return nil
         }

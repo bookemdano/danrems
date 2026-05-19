@@ -6,22 +6,44 @@ struct ReminderRow: View {
     var showDate = false
     var showScheduleInfo = false
     var onComplete: ((String, String, Date?) -> Void)?
+    var onUncomplete: (() -> Void)?
+
+    @State private var showNotTodayAlert = false
 
     var body: some View {
         HStack(spacing: 12) {
-            Button {
-                if !item.isCompleted, let onComplete {
-                    let nextDate = try? service.completeReminder(identifier: item.id)
-                    onComplete(item.id, item.title, nextDate)
-                } else {
-                    try? service.toggleComplete(identifier: item.id)
+            if onComplete != nil {
+                Button {
+                    if !item.isCompleted {
+                        if !item.isDueToday {
+                            showNotTodayAlert = true
+                        } else {
+                            let nextDate = try? service.completeReminder(identifier: item.id)
+                            onComplete?(item.id, item.title, nextDate)
+                        }
+                    } else {
+                        try? service.toggleComplete(identifier: item.id)
+                        onUncomplete?()
+                    }
+                } label: {
+                    Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(item.isCompleted ? .gray : .accentColor)
+                        .imageScale(.large)
                 }
-            } label: {
-                Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(item.isCompleted ? .gray : .accentColor)
-                    .imageScale(.large)
+                .buttonStyle(.plain)
+                .confirmationDialog("This item isn't due today.", isPresented: $showNotTodayAlert, titleVisibility: .visible) {
+                    Button("Move to Today & Complete") {
+                        try? service.moveToToday(identifier: item.id)
+                        let nextDate = try? service.completeReminder(identifier: item.id)
+                        onComplete?(item.id, item.title, nextDate)
+                    }
+                    Button("Complete Anyway") {
+                        let nextDate = try? service.completeReminder(identifier: item.id)
+                        onComplete?(item.id, item.title, nextDate)
+                    }
+                    Button("Cancel", role: .cancel) {}
+                }
             }
-            .buttonStyle(.plain)
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {

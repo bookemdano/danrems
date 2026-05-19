@@ -245,7 +245,9 @@ struct ContentView: View {
                     Section("Completed - \(listName)") {
                         ForEach(items) { item in
                             NavigationLink(value: item) {
-                                ReminderRow(item: item, onComplete: handleComplete)
+                                ReminderRow(item: item, onComplete: handleComplete, onUncomplete: {
+                                    Task { completedReminders = await service.fetchCompletedToday() }
+                                })
                             }
                         }
                     }

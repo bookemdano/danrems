@@ -6,14 +6,14 @@ struct SearchView: View {
 
     @State private var searchText = ""
     @State private var results: [ReminderItem] = []
-    @State private var isSearching = false
+    @State private var isFetching = false
     @State private var deleteTarget: ReminderItem?
     @State private var errorMessage: String?
 
     var body: some View {
         NavigationStack {
             List {
-                if results.isEmpty && !searchText.isEmpty && !isSearching {
+                if results.isEmpty && !searchText.isEmpty && !isFetching {
                     ContentUnavailableView.search(text: searchText)
                 }
 
@@ -35,6 +35,9 @@ struct SearchView: View {
                 ReminderDetailView(reminderID: item.id)
             }
             .searchable(text: $searchText, prompt: "Search all reminders")
+            .onChange(of: searchText) { _, new in
+                if new.isEmpty { dismiss() }
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -45,12 +48,12 @@ struct SearchView: View {
                     results = []
                     return
                 }
-                isSearching = true
+                isFetching = true
                 // Debounce
                 try? await Task.sleep(for: .milliseconds(300))
                 guard !Task.isCancelled else { return }
                 results = await service.searchReminders(query: searchText)
-                isSearching = false
+                isFetching = false
             }
             .confirmationDialog(
                 "Delete Reminder",
