@@ -116,7 +116,9 @@ struct ContentView: View {
         UserDefaults.standard.set(todayOrder, forKey: "todayOrder")
     }
 
-    private func handleComplete(_ title: String, _ nextDate: Date?) {
+    private func handleComplete(_ id: String, _ title: String, _ nextDate: Date?) {
+        inProgressIDs.remove(id)
+        UserDefaults.standard.set(Array(inProgressIDs), forKey: "inProgressIDs")
         if let nextDate {
             showToast("\(title) — next due \(nextDate.formatted(.dateTime.month(.abbreviated).day().year()))")
         } else {
@@ -251,7 +253,10 @@ struct ContentView: View {
             }
         }
         .navigationDestination(for: ReminderItem.self) { item in
-            ReminderDetailView(reminderID: item.id)
+            ReminderDetailView(reminderID: item.id, onComplete: { id in
+                inProgressIDs.remove(id)
+                UserDefaults.standard.set(Array(inProgressIDs), forKey: "inProgressIDs")
+            })
         }
         .overlay {
             if service.reminders.isEmpty && !showCompleted && !showUpcoming {

@@ -5,6 +5,7 @@ struct ReminderDetailView: View {
     @Environment(ReminderService.self) private var service
     @Environment(\.dismiss) private var dismiss
     let reminderID: String
+    var onComplete: ((String) -> Void)?
 
     @State private var showDeleteConfirmation = false
     @State private var errorMessage: String?
@@ -277,6 +278,7 @@ struct ReminderDetailView: View {
         if !item.isCompleted {
             do {
                 let nextDate = try service.completeReminder(identifier: item.id)
+                onComplete?(item.id)
                 if let nextDate {
                     showToast("\(item.title) — next due \(nextDate.formatted(.dateTime.month(.abbreviated).day().year()))")
                 } else {

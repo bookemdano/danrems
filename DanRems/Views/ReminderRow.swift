@@ -5,14 +5,14 @@ struct ReminderRow: View {
     let item: ReminderItem
     var showDate = false
     var showScheduleInfo = false
-    var onComplete: ((String, Date?) -> Void)?
+    var onComplete: ((String, String, Date?) -> Void)?
 
     var body: some View {
         HStack(spacing: 12) {
             Button {
                 if !item.isCompleted, let onComplete {
                     let nextDate = try? service.completeReminder(identifier: item.id)
-                    onComplete(item.title, nextDate)
+                    onComplete(item.id, item.title, nextDate)
                 } else {
                     try? service.toggleComplete(identifier: item.id)
                 }
