@@ -200,6 +200,7 @@ final class ReminderService {
 
         reminder.isCompleted = true
         try eventStore.save(reminder, commit: true)
+        reminders.removeAll { $0.id == identifier }
         Task { await fetchReminders() }
         return nextDueDate
     }

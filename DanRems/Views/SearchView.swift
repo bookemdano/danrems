@@ -12,35 +12,54 @@ struct SearchView: View {
 
     var body: some View {
         NavigationStack {
-            List {
-                if results.isEmpty && !searchText.isEmpty && !isFetching {
-                    ContentUnavailableView.search(text: searchText)
-                }
-
-                ForEach(results) { item in
-                    NavigationLink(value: item) {
-                        ReminderRow(item: item, showScheduleInfo: true)
-                    }
-                    .swipeActions(edge: .trailing) {
-                        Button(role: .destructive) {
-                            deleteTarget = item
+            VStack(spacing: 0) {
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    TextField("Search all reminders", text: $searchText)
+                        .autocorrectionDisabled()
+                        .textInputAutocapitalization(.never)
+                    if !searchText.isEmpty {
+                        Button {
+                            searchText = ""
                         } label: {
-                            Label("Delete", systemImage: "trash")
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
                         }
                     }
                 }
+                .padding(10)
+                .background(Color(.systemGray5), in: RoundedRectangle(cornerRadius: 10))
+                .padding()
+
+                List {
+                    if results.isEmpty && !searchText.isEmpty && !isFetching {
+                        ContentUnavailableView.search(text: searchText)
+                    }
+
+                    ForEach(results) { item in
+                        NavigationLink(value: item) {
+                            ReminderRow(item: item, showScheduleInfo: true)
+                        }
+                        .swipeActions(edge: .trailing) {
+                            Button(role: .destructive) {
+                                deleteTarget = item
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                    }
+                }
+                .listStyle(.plain)
             }
             .navigationTitle("Search")
+            .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: ReminderItem.self) { item in
                 ReminderDetailView(reminderID: item.id)
             }
-            .searchable(text: $searchText, prompt: "Search all reminders")
-            .onChange(of: searchText) { _, new in
-                if new.isEmpty { dismiss() }
-            }
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Finish") { dismiss() }
                 }
             }
             .task(id: searchText) {
@@ -54,6 +73,12 @@ struct SearchView: View {
                 guard !Task.isCancelled else { return }
                 results = await service.searchReminders(query: searchText)
                 isFetching = false
+            }
+            .onChange(of: service.reminders) { _, _ in
+                guard !searchText.isEmpty else { return }
+                Task {
+                    results = await service.searchReminders(query: searchText)
+                }
             }
             .confirmationDialog(
                 "Delete Reminder",
