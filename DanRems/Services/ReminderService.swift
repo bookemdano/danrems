@@ -11,6 +11,32 @@ final class ReminderService {
     var calendars: [EKCalendar] = []
     var authorizationStatus: EKAuthorizationStatus = .notDetermined
     var errorMessage: String?
+    var inProgressIDs: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "inProgressIDs") ?? [])
+
+    func toggleInProgress(_ id: String) {
+        if inProgressIDs.contains(id) { inProgressIDs.remove(id) } else { inProgressIDs.insert(id) }
+        UserDefaults.standard.set(Array(inProgressIDs), forKey: "inProgressIDs")
+    }
+
+    func clearInProgress(_ id: String) {
+        inProgressIDs.remove(id)
+        UserDefaults.standard.set(Array(inProgressIDs), forKey: "inProgressIDs")
+    }
+
+    func reschedule(identifiers: [String], to date: Date) throws {
+        let components = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        for id in identifiers {
+            guard let reminder = eventStore.calendarItem(withIdentifier: id) as? EKReminder else { continue }
+            var existing = reminder.dueDateComponents ?? DateComponents()
+            existing.year = components.year
+            existing.month = components.month
+            existing.day = components.day
+            reminder.dueDateComponents = existing
+            try eventStore.save(reminder, commit: false)
+        }
+        try eventStore.commit()
+        Task { await fetchReminders() }
+    }
 
     func requestAccess() async {
         do {
@@ -96,8 +122,16 @@ final class ReminderService {
         let incomplete = await fetchReminderItems(matching: incompletePredicate)
         let completed = await fetchReminderItems(matching: completedPredicate)
 
-        return (incomplete + completed)
+        let matches = (incomplete + completed)
             .filter { $0.title.lowercased().contains(lowered) }
+
+        let incompleteNoDueDate = matches.filter { $0.dueDate == nil && !$0.isCompleted }
+        let completedNoDueDate = matches.filter { $0.dueDate == nil && $0.isCompleted }
+        let dated = matches
+            .filter { $0.dueDate != nil }
+            .sorted { $0.dueDate! > $1.dueDate! }
+
+        return incompleteNoDueDate + dated + completedNoDueDate
     }
 
     func createReminder(
@@ -182,6 +216,7 @@ final class ReminderService {
         }
 
         var nextDueDate: Date?
+        var nextDueComponents: DateComponents?
         if let rule = reminder.recurrenceRules?.first,
            let comps = reminder.dueDateComponents {
             var dueDateComps = comps
@@ -195,11 +230,28 @@ final class ReminderService {
                 case .yearly: cal.date(byAdding: .year, value: rule.interval, to: currentDue)
                 @unknown default: nil
                 }
+                if let nextDueDate {
+                    var newComps = cal.dateComponents([.year, .month, .day], from: nextDueDate)
+                    if comps.hour != nil { newComps.hour = cal.component(.hour, from: nextDueDate) }
+                    if comps.minute != nil { newComps.minute = cal.component(.minute, from: nextDueDate) }
+                    nextDueComponents = newComps
+                }
             }
         }
 
         reminder.isCompleted = true
         try eventStore.save(reminder, commit: true)
+
+        // EventKit advances a completed recurring reminder using its original schedule
+        // anchor, not whatever due date it had when completed — force-correct it so
+        // late completions (e.g. after "Move to Today") recur from the edited date.
+        if let nextDueComponents,
+           let advanced = eventStore.calendarItem(withIdentifier: identifier) as? EKReminder,
+           !advanced.isCompleted {
+            advanced.dueDateComponents = nextDueComponents
+            try eventStore.save(advanced, commit: true)
+        }
+
         reminders.removeAll { $0.id == identifier }
         Task { await fetchReminders() }
         return nextDueDate

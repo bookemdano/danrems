@@ -10,8 +10,9 @@ struct ContentView: View {
     @State private var completedReminders: [ReminderItem] = []
     @State private var upcomingReminders: [ReminderItem] = []
     @State private var todayOrder: [String] = UserDefaults.standard.stringArray(forKey: "todayOrder") ?? []
-    @State private var inProgressIDs: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "inProgressIDs") ?? [])
     @State private var toastMessage: String?
+    @State private var isSelecting = false
+    @State private var selectedIDs: Set<String> = []
 
     private var overdueReminders: [ReminderItem] {
         service.reminders.filter(\.isOverdue)
@@ -52,6 +53,28 @@ struct ContentView: View {
         }
     }
 
+    // MARK: - Date shortcuts
+
+    private var tomorrow: Date {
+        Calendar.current.date(byAdding: .day, value: 1, to: Date().startOfDay)!
+    }
+
+    private var thisWeekend: Date {
+        let cal = Calendar.current
+        let today = Date().startOfDay
+        let weekday = cal.component(.weekday, from: today)
+        let daysToSat = ((7 - weekday) % 7 == 0) ? 7 : (7 - weekday)
+        return cal.date(byAdding: .day, value: daysToSat, to: today)!
+    }
+
+    private var nextMonth: Date {
+        let cal = Calendar.current
+        var comps = cal.dateComponents([.year, .month], from: Date())
+        comps.month = (comps.month ?? 1) + 1
+        comps.day = 1
+        return cal.date(from: comps)!
+    }
+
     var body: some View {
         NavigationStack {
             Group {
@@ -67,16 +90,39 @@ struct ContentView: View {
                     )
                 }
             }
-            .navigationTitle("DanRems")
+            .navigationTitle(isSelecting && !selectedIDs.isEmpty ? "\(selectedIDs.count) Selected" : "DanRems")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button { showSearch = true } label: {
-                        Label("Search", systemImage: "magnifyingglass")
+                    if !isSelecting {
+                        Button { showSearch = true } label: {
+                            Label("Search", systemImage: "magnifyingglass")
+                        }
                     }
                 }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showNewReminder = true } label: {
-                        Label("New Reminder", systemImage: "plus")
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    if !isSelecting {
+                        Button { showNewReminder = true } label: {
+                            Label("New Reminder", systemImage: "plus")
+                        }
+                    }
+                    Button(isSelecting ? "Cancel" : "Select") {
+                        isSelecting.toggle()
+                        if !isSelecting { selectedIDs = [] }
+                    }
+                }
+                if isSelecting {
+                    ToolbarItemGroup(placement: .bottomBar) {
+                        Button("Today") { rescheduleSelected(to: Date().startOfDay) }
+                            .disabled(selectedIDs.isEmpty)
+                        Spacer()
+                        Button("Tomorrow") { rescheduleSelected(to: tomorrow) }
+                            .disabled(selectedIDs.isEmpty)
+                        Spacer()
+                        Button("Weekend") { rescheduleSelected(to: thisWeekend) }
+                            .disabled(selectedIDs.isEmpty)
+                        Spacer()
+                        Button("Next Month") { rescheduleSelected(to: nextMonth) }
+                            .disabled(selectedIDs.isEmpty)
                     }
                 }
             }
@@ -103,6 +149,8 @@ struct ContentView: View {
         }
     }
 
+    // MARK: - Actions
+
     private func syncTodayOrder() {
         let today = service.reminders.filter { $0.isDueToday && !$0.isOverdue }
         let idSet = Set(today.map(\.id))
@@ -117,8 +165,7 @@ struct ContentView: View {
     }
 
     private func handleComplete(_ id: String, _ title: String, _ nextDate: Date?) {
-        inProgressIDs.remove(id)
-        UserDefaults.standard.set(Array(inProgressIDs), forKey: "inProgressIDs")
+        service.clearInProgress(id)
         if let nextDate {
             showToast("\(title) — next due \(nextDate.formatted(.dateTime.month(.abbreviated).day().year()))")
         } else {
@@ -134,67 +181,138 @@ struct ContentView: View {
         }
     }
 
-    private func toggleInProgress(_ id: String) {
-        if inProgressIDs.contains(id) {
-            inProgressIDs.remove(id)
-        } else {
-            inProgressIDs.insert(id)
-        }
-        UserDefaults.standard.set(Array(inProgressIDs), forKey: "inProgressIDs")
+    private func toggleSelection(_ id: String) {
+        if selectedIDs.contains(id) { selectedIDs.remove(id) } else { selectedIDs.insert(id) }
     }
+
+    private func rescheduleSelected(to date: Date) {
+        try? service.reschedule(identifiers: Array(selectedIDs), to: date)
+        selectedIDs = []
+        isSelecting = false
+    }
+
+    // MARK: - Row builders
+
+    @ViewBuilder
+    private func overdueRow(for item: ReminderItem) -> some View {
+        if isSelecting {
+            Button { toggleSelection(item.id) } label: {
+                selectableContent(for: item)
+            }
+            .buttonStyle(.plain)
+        } else {
+            NavigationLink(value: item) {
+                ReminderRow(item: item, onComplete: handleComplete)
+            }
+            .contextMenu { dateContextMenu(for: item) }
+        }
+    }
+
+    @ViewBuilder
+    private func todayRow(for item: ReminderItem) -> some View {
+        if isSelecting {
+            Button { toggleSelection(item.id) } label: {
+                selectableContent(for: item, showExtras: true)
+            }
+            .buttonStyle(.plain)
+        } else {
+            NavigationLink(value: item) {
+                HStack {
+                    ReminderRow(item: item, onComplete: handleComplete)
+                    Spacer()
+                    if service.inProgressIDs.contains(item.id) {
+                        Image(systemName: "hammer.fill")
+                            .foregroundStyle(.orange)
+                            .imageScale(.small)
+                    }
+                    if item.listName != "Reminders" {
+                        Text(item.listName)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .contextMenu { dateContextMenu(for: item) }
+        }
+    }
+
+    private func checkbox(checked: Bool) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 5)
+                .fill(checked ? Color.accentColor : Color.clear)
+            RoundedRectangle(cornerRadius: 5)
+                .stroke(checked ? Color.accentColor : Color.secondary, lineWidth: 1.5)
+            if checked {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(.white)
+            }
+        }
+        .frame(width: 22, height: 22)
+    }
+
+    private func selectableContent(for item: ReminderItem, showExtras: Bool = false) -> some View {
+        HStack {
+            checkbox(checked: selectedIDs.contains(item.id))
+            ReminderRow(item: item)
+            Spacer()
+            if showExtras {
+                if service.inProgressIDs.contains(item.id) {
+                    Image(systemName: "hammer.fill")
+                        .foregroundStyle(.orange)
+                        .imageScale(.small)
+                }
+                if item.listName != "Reminders" {
+                    Text(item.listName)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func dateContextMenu(for item: ReminderItem) -> some View {
+        Button("Move to Today") { try? service.reschedule(identifiers: [item.id], to: Date().startOfDay) }
+        Button("Move to Tomorrow") { try? service.reschedule(identifiers: [item.id], to: tomorrow) }
+        Button("Move to This Weekend") { try? service.reschedule(identifiers: [item.id], to: thisWeekend) }
+        Button("Move to Next Month") { try? service.reschedule(identifiers: [item.id], to: nextMonth) }
+    }
+
+    // MARK: - List
 
     private var remindersList: some View {
         List {
             if !overdueReminders.isEmpty {
-                Section {
-                    Button("Move All to Today") {
-                        try? service.moveOverdueToToday()
+                if !isSelecting {
+                    Section {
+                        Button("Move All to Today") {
+                            try? service.moveOverdueToToday()
+                        }
                     }
                 }
                 ForEach(groupedOverdue, id: \.0) { listName, items in
                     Section("Overdue - \(listName)") {
                         ForEach(items) { item in
-                            NavigationLink(value: item) {
-                                ReminderRow(item: item, onComplete: handleComplete)
-                            }
+                            overdueRow(for: item)
                         }
                     }
                 }
             }
 
             Section("Today") {
-                ForEach(orderedTodayReminders) { item in
-                    NavigationLink(value: item) {
-                        HStack {
-                            ReminderRow(item: item, onComplete: handleComplete)
-                            Spacer()
-                            if inProgressIDs.contains(item.id) {
-                                Image(systemName: "hammer.fill")
-                                    .foregroundStyle(.orange)
-                                    .imageScale(.small)
-                            }
-                            if item.listName != "Reminders" {
-                                Text(item.listName)
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
+                if isSelecting {
+                    ForEach(orderedTodayReminders) { item in
+                        todayRow(for: item)
                     }
-                    .swipeActions(edge: .leading) {
-                        Button {
-                            toggleInProgress(item.id)
-                        } label: {
-                            Label(
-                                inProgressIDs.contains(item.id) ? "Not Started" : "In Progress",
-                                systemImage: inProgressIDs.contains(item.id) ? "stop.fill" : "hammer.fill"
-                            )
-                        }
-                        .tint(.orange)
+                } else {
+                    ForEach(orderedTodayReminders) { item in
+                        todayRow(for: item)
                     }
-                }
-                .onMove { from, to in
-                    todayOrder.move(fromOffsets: from, toOffset: to)
-                    saveTodayOrder()
+                    .onMove { from, to in
+                        todayOrder.move(fromOffsets: from, toOffset: to)
+                        saveTodayOrder()
+                    }
                 }
             }
 
@@ -256,8 +374,7 @@ struct ContentView: View {
         }
         .navigationDestination(for: ReminderItem.self) { item in
             ReminderDetailView(reminderID: item.id, onComplete: { id in
-                inProgressIDs.remove(id)
-                UserDefaults.standard.set(Array(inProgressIDs), forKey: "inProgressIDs")
+                service.clearInProgress(id)
             })
         }
         .overlay {
