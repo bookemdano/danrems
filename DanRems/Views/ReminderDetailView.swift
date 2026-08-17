@@ -138,6 +138,14 @@ struct ReminderDetailView: View {
                         }
                     }
                 }
+
+                ForEach(item?.noteURLs ?? [], id: \.self) { url in
+                    Link(destination: url) {
+                        Label(url.absoluteString, systemImage: "link")
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                }
             }
 
             Section("Schedule") {

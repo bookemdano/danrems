@@ -32,6 +32,16 @@ struct ReminderItem: Identifiable, Hashable, Sendable {
         Color(red: listColorRed, green: listColorGreen, blue: listColorBlue)
     }
 
+    /// EventKit doesn't expose the Reminders app's dedicated URL field, so we
+    /// scan notes for links instead — see https://developer.apple.com/forums/thread/739541
+    var noteURLs: [URL] {
+        guard let notes, !notes.isEmpty,
+              let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+        else { return [] }
+        let range = NSRange(notes.startIndex..., in: notes)
+        return detector.matches(in: notes, range: range).compactMap(\.url)
+    }
+
     static func safeFrom(_ reminder: EKReminder) -> ReminderItem? {
         // Guard against reminders with missing essential data
         guard !reminder.calendarItemIdentifier.isEmpty else { return nil }
