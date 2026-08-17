@@ -18,6 +18,7 @@
 		81B2C3EC1D9D3487ABF155ED /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8D4EE065FF8CB074919B781D /* Assets.xcassets */; };
 		A699A433F53EA0635E62782B /* ReminderItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0462F6EC6C8B7C92A9BA45 /* ReminderItem.swift */; };
 		CFCEDACAE3D8D2E45635DF0E /* DanRemsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3B45DFC6E8BC6C32916F7EE /* DanRemsApp.swift */; };
+		EA15BD443D1BA76EC2DBD91B /* PickDateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF15496CA6E8C4E2C7DB2C8A /* PickDateView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -32,6 +33,7 @@
 		A3B45DFC6E8BC6C32916F7EE /* DanRemsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DanRemsApp.swift; sourceTree = "<group>"; };
 		AD0462F6EC6C8B7C92A9BA45 /* ReminderItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderItem.swift; sourceTree = "<group>"; };
 		BE91092176A44C8B8A04C00A /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		CF15496CA6E8C4E2C7DB2C8A /* PickDateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickDateView.swift; sourceTree = "<group>"; };
 		DCD586BC7842D0AD2BAEFE1B /* ReminderRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderRow.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -64,6 +66,7 @@
 			isa = PBXGroup;
 			children = (
 				BE91092176A44C8B8A04C00A /* ContentView.swift */,
+				CF15496CA6E8C4E2C7DB2C8A /* PickDateView.swift */,
 				3344701360C35411F886BD64 /* ReminderDetailView.swift */,
 				770E2C8CEAAFBB69DB3588D7 /* ReminderEditView.swift */,
 				DCD586BC7842D0AD2BAEFE1B /* ReminderRow.swift */,
@@ -185,6 +188,7 @@
 				41AEC1C1E8472DBA9FDBBEAD /* ContentView.swift in Sources */,
 				CFCEDACAE3D8D2E45635DF0E /* DanRemsApp.swift in Sources */,
 				7E39BF87C4186E5F8C9B762F /* DateHelpers.swift in Sources */,
+				EA15BD443D1BA76EC2DBD91B /* PickDateView.swift in Sources */,
 				598CD1303C90E9C7ABE51881 /* ReminderDetailView.swift in Sources */,
 				5C60069545C4FC4CDA26F4B3 /* ReminderEditView.swift in Sources */,
 				A699A433F53EA0635E62782B /* ReminderItem.swift in Sources */,

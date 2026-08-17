@@ -1,5 +1,12 @@
 import SwiftUI
 
+/// Identifies which reminders a presented date picker will move.
+struct PickDateTargets: Identifiable {
+    let id = UUID()
+    let ids: [String]
+    var endsSelection = false
+}
+
 struct ContentView: View {
     @Environment(ReminderService.self) private var service
     @State private var showCompleted = false
@@ -13,6 +20,7 @@ struct ContentView: View {
     @State private var toastMessage: String?
     @State private var isSelecting = false
     @State private var selectedIDs: Set<String> = []
+    @State private var pickDateTargets: PickDateTargets?
 
     private var overdueReminders: [ReminderItem] {
         service.reminders.filter(\.isOverdue)
@@ -123,6 +131,13 @@ struct ContentView: View {
                         Spacer()
                         Button("Next Month") { rescheduleSelected(to: nextMonth) }
                             .disabled(selectedIDs.isEmpty)
+                        Spacer()
+                        Button {
+                            pickDateTargets = PickDateTargets(ids: Array(selectedIDs), endsSelection: true)
+                        } label: {
+                            Label("Pick Date", systemImage: "calendar")
+                        }
+                        .disabled(selectedIDs.isEmpty)
                     }
                 }
             }
@@ -131,6 +146,15 @@ struct ContentView: View {
             }
             .sheet(isPresented: $showNewReminder) {
                 ReminderEditView(mode: .create)
+            }
+            .sheet(item: $pickDateTargets) { targets in
+                PickDateView(count: targets.ids.count) { date in
+                    try? service.reschedule(identifiers: targets.ids, to: date)
+                    if targets.endsSelection {
+                        selectedIDs = []
+                        isSelecting = false
+                    }
+                }
             }
             .task {
                 await service.requestAccess()
@@ -277,6 +301,7 @@ struct ContentView: View {
         Button("Move to Tomorrow") { try? service.reschedule(identifiers: [item.id], to: tomorrow) }
         Button("Move to This Weekend") { try? service.reschedule(identifiers: [item.id], to: thisWeekend) }
         Button("Move to Next Month") { try? service.reschedule(identifiers: [item.id], to: nextMonth) }
+        Button("Pick Date...") { pickDateTargets = PickDateTargets(ids: [item.id]) }
     }
 
     // MARK: - List
