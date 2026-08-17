@@ -184,6 +184,11 @@ struct ReminderDetailView: View {
             }
 
             Section {
+                Toggle("In Progress", isOn: Binding(
+                    get: { service.inProgressIDs.contains(reminderID) },
+                    set: { _ in service.toggleInProgress(reminderID) }
+                ))
+
                 if let item {
                     Button {
                         if !item.isCompleted && !item.isDueToday {
