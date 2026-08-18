@@ -21,6 +21,7 @@ struct ReminderDetailView: View {
     @State private var includeTime = false
     @State private var notes = ""
     @State private var priority = 0
+    @State private var storyPoints: StoryPoints?
     @State private var recurrenceType: RecurrenceType = .none
     @State private var recurrenceInterval = 1
     @State private var showHistory = false
@@ -56,8 +57,9 @@ struct ReminderDetailView: View {
         return title != item.title
             || calendarChanged
             || dueDateChanged
-            || notes != (item.notes ?? "")
+            || notes != (item.displayNotes ?? "")
             || priority != item.priority
+            || storyPoints != item.storyPoints
             || recurrenceType != origRecurrence
             || recurrenceInterval != origInterval
     }
@@ -187,6 +189,8 @@ struct ReminderDetailView: View {
                     Text("High").tag(1)
                 }
 
+                StoryPointsField(selection: $storyPoints)
+
                 TextField("Notes", text: $notes, axis: .vertical)
                     .lineLimit(3...6)
             }
@@ -262,8 +266,9 @@ struct ReminderDetailView: View {
         guard let item = service.getReminder(identifier: reminderID) else { return }
 
         title = item.title
-        notes = item.notes ?? ""
+        notes = item.displayNotes ?? ""
         priority = item.priority
+        storyPoints = item.storyPoints
         if let date = item.dueDate {
             hasDueDate = true
             dueDate = date
@@ -294,7 +299,8 @@ struct ReminderDetailView: View {
             try service.updateReminder(
                 identifier: reminderID, title: title, calendar: calendar,
                 dueDate: date, includeTime: includeTime,
-                notes: noteText, priority: priority, recurrenceRule: rule
+                notes: noteText, priority: priority,
+                storyPoints: storyPoints, recurrenceRule: rule
             )
             dismiss()
         } catch {

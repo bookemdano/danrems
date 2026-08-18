@@ -141,6 +141,7 @@ final class ReminderService {
         includeTime: Bool,
         notes: String?,
         priority: Int,
+        storyPoints: StoryPoints?,
         recurrenceRule: EKRecurrenceRule?
     ) throws {
         let reminder = EKReminder(eventStore: eventStore)
@@ -154,7 +155,7 @@ final class ReminderService {
             }
             reminder.dueDateComponents = Calendar.current.dateComponents(components, from: dueDate)
         }
-        reminder.notes = notes
+        reminder.notes = StoryPoints.encode(notes: notes, points: storyPoints)
         reminder.priority = priority
         if let recurrenceRule {
             reminder.addRecurrenceRule(recurrenceRule)
@@ -171,6 +172,7 @@ final class ReminderService {
         includeTime: Bool,
         notes: String?,
         priority: Int,
+        storyPoints: StoryPoints?,
         recurrenceRule: EKRecurrenceRule?
     ) throws {
         guard let reminder = eventStore.calendarItem(withIdentifier: identifier) as? EKReminder else {
@@ -188,7 +190,7 @@ final class ReminderService {
         } else {
             reminder.dueDateComponents = nil
         }
-        reminder.notes = notes
+        reminder.notes = StoryPoints.encode(notes: notes, points: storyPoints)
         reminder.priority = priority
         if let existing = reminder.recurrenceRules {
             for rule in existing { reminder.removeRecurrenceRule(rule) }

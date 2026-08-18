@@ -55,6 +55,10 @@ struct ReminderRow: View {
                     Text(item.title)
                         .strikethrough(item.isCompleted)
                         .foregroundStyle(item.isOverdue ? .red : .primary)
+
+                    if let points = item.storyPoints {
+                        StoryPointsBadge(points: points)
+                    }
                 }
 
                 if showDate, let dueDate = item.dueDate {

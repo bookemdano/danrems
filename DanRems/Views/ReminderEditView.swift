@@ -19,6 +19,7 @@ struct ReminderEditView: View {
     @State private var includeTime = false
     @State private var notes = ""
     @State private var priority = 0
+    @State private var storyPoints: StoryPoints?
     @State private var recurrenceType: RecurrenceType = .none
     @State private var recurrenceInterval = 1
     @State private var errorMessage: String?
@@ -81,6 +82,8 @@ struct ReminderEditView: View {
                         Text("High").tag(1)
                     }
 
+                    StoryPointsField(selection: $storyPoints)
+
                     TextField("Notes", text: $notes, axis: .vertical)
                         .lineLimit(3...6)
                 }
@@ -112,8 +115,9 @@ struct ReminderEditView: View {
               let item = service.getReminder(identifier: id) else { return }
 
         title = item.title
-        notes = item.notes ?? ""
+        notes = item.displayNotes ?? ""
         priority = item.priority
+        storyPoints = item.storyPoints
         if let date = item.dueDate {
             hasDueDate = true
             dueDate = date
@@ -141,13 +145,14 @@ struct ReminderEditView: View {
                 try service.createReminder(
                     title: title, calendar: calendar, dueDate: date,
                     includeTime: includeTime, notes: noteText,
-                    priority: priority, recurrenceRule: rule
+                    priority: priority, storyPoints: storyPoints, recurrenceRule: rule
                 )
             case .edit(let id):
                 try service.updateReminder(
                     identifier: id, title: title, calendar: calendar,
                     dueDate: date, includeTime: includeTime,
-                    notes: noteText, priority: priority, recurrenceRule: rule
+                    notes: noteText, priority: priority,
+                    storyPoints: storyPoints, recurrenceRule: rule
                 )
             }
             dismiss()
