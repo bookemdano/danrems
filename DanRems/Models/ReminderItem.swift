@@ -18,11 +18,13 @@ struct ReminderItem: Identifiable, Hashable, Sendable {
     var recurrenceFrequency: EKRecurrenceFrequency?
     var recurrenceInterval: Int?
     var storyPoints: StoryPoints?
+    var isInProgress: Bool
 
-    /// Notes with the `#sp<n>` size tag removed — what every editor and label
-    /// should show, since the tag is storage rather than something Dan typed.
+    /// Notes with the `#sp<n>` and `#wip` tags removed — what every editor and
+    /// label should show, since the tags are storage rather than something Dan
+    /// typed.
     var displayNotes: String? {
-        StoryPoints.strippingTags(from: notes)
+        ReminderNotes.strippingTags(from: notes)
     }
 
     var isOverdue: Bool {
@@ -93,7 +95,8 @@ struct ReminderItem: Identifiable, Hashable, Sendable {
             completionDate: reminder.completionDate,
             recurrenceFrequency: rule?.frequency,
             recurrenceInterval: rule?.interval,
-            storyPoints: StoryPoints.parse(from: reminder.notes)
+            storyPoints: StoryPoints.parse(from: reminder.notes),
+            isInProgress: ReminderNotes.isInProgress(reminder.notes)
         )
     }
 
@@ -105,7 +108,8 @@ struct ReminderItem: Identifiable, Hashable, Sendable {
         lhs.isCompleted == rhs.isCompleted &&
         lhs.priority == rhs.priority &&
         lhs.listIdentifier == rhs.listIdentifier &&
-        lhs.storyPoints == rhs.storyPoints
+        lhs.storyPoints == rhs.storyPoints &&
+        lhs.isInProgress == rhs.isInProgress
     }
 
     func hash(into hasher: inout Hasher) {

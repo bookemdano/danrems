@@ -130,10 +130,7 @@ struct ContentView: View {
                             Label("Search", systemImage: "magnifyingglass")
                         }
                         ShareLink(
-                            item: ReminderExport.markdown(
-                                groups: exportGroups,
-                                inProgressIDs: service.inProgressIDs
-                            ),
+                            item: ReminderExport.markdown(groups: exportGroups),
                             subject: Text("DanRems reminders")
                         ) {
                             Label("Share", systemImage: "square.and.arrow.up")
@@ -228,7 +225,8 @@ struct ContentView: View {
     }
 
     private func handleComplete(_ id: String, _ title: String, _ nextDate: Date?) {
-        service.clearInProgress(id)
+        // completeReminder clears the #wip tag itself, so there's nothing to
+        // reset here — the next occurrence comes back not-started.
         if let nextDate {
             showToast("\(title) — next due \(nextDate.formatted(.dateTime.month(.abbreviated).day().year()))")
         } else {
@@ -251,10 +249,7 @@ struct ContentView: View {
     private func copyDisplayedReminders() {
         let groups = exportGroups
         let count = ReminderExport.itemCount(in: groups)
-        UIPasteboard.general.string = ReminderExport.markdown(
-            groups: groups,
-            inProgressIDs: service.inProgressIDs
-        )
+        UIPasteboard.general.string = ReminderExport.markdown(groups: groups)
         showToast(count == 0
             ? "Nothing to copy"
             : "Copied \(count) reminder\(count == 1 ? "" : "s")")
@@ -295,7 +290,7 @@ struct ContentView: View {
                 HStack {
                     ReminderRow(item: item, onComplete: handleComplete)
                     Spacer()
-                    if service.inProgressIDs.contains(item.id) {
+                    if item.isInProgress {
                         Image(systemName: "hammer.fill")
                             .foregroundStyle(.orange)
                             .imageScale(.small)
@@ -332,7 +327,7 @@ struct ContentView: View {
             ReminderRow(item: item)
             Spacer()
             if showExtras {
-                if service.inProgressIDs.contains(item.id) {
+                if item.isInProgress {
                     Image(systemName: "hammer.fill")
                         .foregroundStyle(.orange)
                         .imageScale(.small)
@@ -449,9 +444,7 @@ struct ContentView: View {
             }
         }
         .navigationDestination(for: ReminderItem.self) { item in
-            ReminderDetailView(reminderID: item.id, onComplete: { id in
-                service.clearInProgress(id)
-            })
+            ReminderDetailView(reminderID: item.id)
         }
         .overlay {
             if service.reminders.isEmpty && !showCompleted && !showUpcoming {

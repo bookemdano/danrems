@@ -11,16 +11,23 @@ final class ReminderService {
     var calendars: [EKCalendar] = []
     var authorizationStatus: EKAuthorizationStatus = .notDetermined
     var errorMessage: String?
-    var inProgressIDs: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "inProgressIDs") ?? [])
-
-    func toggleInProgress(_ id: String) {
-        if inProgressIDs.contains(id) { inProgressIDs.remove(id) } else { inProgressIDs.insert(id) }
-        UserDefaults.standard.set(Array(inProgressIDs), forKey: "inProgressIDs")
+    /// Flips the `#wip` tag on the reminder itself, so the flag syncs across
+    /// devices and can be cleared as part of completing the item.
+    func toggleInProgress(identifier: String) throws {
+        guard let reminder = eventStore.calendarItem(withIdentifier: identifier) as? EKReminder else {
+            throw ReminderError.notFound
+        }
+        setInProgress(!ReminderNotes.isInProgress(reminder.notes), on: reminder)
+        try eventStore.save(reminder, commit: true)
+        Task { await fetchReminders() }
     }
 
-    func clearInProgress(_ id: String) {
-        inProgressIDs.remove(id)
-        UserDefaults.standard.set(Array(inProgressIDs), forKey: "inProgressIDs")
+    private func setInProgress(_ inProgress: Bool, on reminder: EKReminder) {
+        reminder.notes = ReminderNotes.encode(
+            notes: reminder.notes,
+            points: StoryPoints.parse(from: reminder.notes),
+            inProgress: inProgress
+        )
     }
 
     func reschedule(identifiers: [String], to date: Date) throws {
@@ -155,7 +162,7 @@ final class ReminderService {
             }
             reminder.dueDateComponents = Calendar.current.dateComponents(components, from: dueDate)
         }
-        reminder.notes = StoryPoints.encode(notes: notes, points: storyPoints)
+        reminder.notes = ReminderNotes.encode(notes: notes, points: storyPoints, inProgress: false)
         reminder.priority = priority
         if let recurrenceRule {
             reminder.addRecurrenceRule(recurrenceRule)
@@ -190,7 +197,13 @@ final class ReminderService {
         } else {
             reminder.dueDateComponents = nil
         }
-        reminder.notes = StoryPoints.encode(notes: notes, points: storyPoints)
+        // The edit form has no "in progress" control, so carry the existing
+        // flag across rather than dropping it on every save.
+        reminder.notes = ReminderNotes.encode(
+            notes: notes,
+            points: storyPoints,
+            inProgress: ReminderNotes.isInProgress(reminder.notes)
+        )
         reminder.priority = priority
         if let existing = reminder.recurrenceRules {
             for rule in existing { reminder.removeRecurrenceRule(rule) }
@@ -241,6 +254,10 @@ final class ReminderService {
             }
         }
 
+        // Clear "in progress" before the save that completes it: EventKit
+        // advances a recurring reminder in place, so anything left in the notes
+        // here would show up on the next occurrence as already started.
+        setInProgress(false, on: reminder)
         reminder.isCompleted = true
         try eventStore.save(reminder, commit: true)
 

@@ -19,7 +19,6 @@ enum ReminderExport {
     static func markdown(
         groups: [Group],
         generatedAt: Date = Date(),
-        inProgressIDs: Set<String> = [],
         includeNotes: Bool = true
     ) -> String {
         let populated = groups.filter { !$0.items.isEmpty }
@@ -41,7 +40,7 @@ enum ReminderExport {
         for group in populated {
             lines.append("## \(group.title)\(tally(group.items))")
             for item in group.items {
-                lines.append(bullet(for: item, inProgress: inProgressIDs.contains(item.id)))
+                lines.append(bullet(for: item))
                 if includeNotes, let notes = item.displayNotes {
                     for line in notes.split(separator: "\n", omittingEmptySubsequences: true) {
                         lines.append("    - note: \(line.trimmingCharacters(in: .whitespaces))")
@@ -80,7 +79,7 @@ enum ReminderExport {
         return " (\(count), \(points) pts)"
     }
 
-    private static func bullet(for item: ReminderItem, inProgress: Bool) -> String {
+    private static func bullet(for item: ReminderItem) -> String {
         var facts: [String] = []
         if let points = item.storyPoints { facts.append("\(points.label) pts") }
         if let due = item.dueDate {
@@ -88,7 +87,7 @@ enum ReminderExport {
         }
         facts.append(item.listName)
         if let priority = priorityText(item.priority) { facts.append(priority) }
-        if inProgress { facts.append("in progress") }
+        if item.isInProgress { facts.append("in progress") }
         if let recurrence = recurrenceText(item) { facts.append(recurrence) }
         if item.isCompleted, let completed = item.completionDate {
             facts.append("completed \(completed.formatted(.dateTime.month(.abbreviated).day().hour().minute()))")

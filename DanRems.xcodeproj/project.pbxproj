@@ -15,6 +15,7 @@
 		5C60069545C4FC4CDA26F4B3 /* ReminderEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 770E2C8CEAAFBB69DB3588D7 /* ReminderEditView.swift */; };
 		6BECB5B03FCCF0454328F252 /* ReminderService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E6E5D9765FCAAA80B7E5E53 /* ReminderService.swift */; };
 		6E47FF2CA2D11A7F16CB14D0 /* StoryPointsControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD1678F6DDD158C80EE76FB3 /* StoryPointsControls.swift */; };
+		7B9F985DD89FC2254B4CEA92 /* ReminderNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED0F9EEB45F5D0A7E0BFFB5B /* ReminderNotes.swift */; };
 		7CFF5CEFE5EA73EA742054D1 /* StoryPoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7D10C51DBC0ADBF1C62904B /* StoryPoints.swift */; };
 		7E39BF87C4186E5F8C9B762F /* DateHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ECBC028F7356A131E98DCCF /* DateHelpers.swift */; };
 		7E8247713182EFC05E0F5337 /* ReminderExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCB025C4A86F26F593592B0E /* ReminderExport.swift */; };
@@ -40,6 +41,7 @@
 		CF15496CA6E8C4E2C7DB2C8A /* PickDateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickDateView.swift; sourceTree = "<group>"; };
 		DCD586BC7842D0AD2BAEFE1B /* ReminderRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderRow.swift; sourceTree = "<group>"; };
 		E7D10C51DBC0ADBF1C62904B /* StoryPoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryPoints.swift; sourceTree = "<group>"; };
+		ED0F9EEB45F5D0A7E0BFFB5B /* ReminderNotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderNotes.swift; sourceTree = "<group>"; };
 		FCB025C4A86F26F593592B0E /* ReminderExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderExport.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -117,6 +119,7 @@
 			children = (
 				FCB025C4A86F26F593592B0E /* ReminderExport.swift */,
 				AD0462F6EC6C8B7C92A9BA45 /* ReminderItem.swift */,
+				ED0F9EEB45F5D0A7E0BFFB5B /* ReminderNotes.swift */,
 				E7D10C51DBC0ADBF1C62904B /* StoryPoints.swift */,
 			);
 			path = Models;
@@ -202,6 +205,7 @@
 				5C60069545C4FC4CDA26F4B3 /* ReminderEditView.swift in Sources */,
 				7E8247713182EFC05E0F5337 /* ReminderExport.swift in Sources */,
 				A699A433F53EA0635E62782B /* ReminderItem.swift in Sources */,
+				7B9F985DD89FC2254B4CEA92 /* ReminderNotes.swift in Sources */,
 				4AB3489C18922B9C387811C1 /* ReminderRow.swift in Sources */,
 				6BECB5B03FCCF0454328F252 /* ReminderService.swift in Sources */,
 				117BBF315AB3F28C74E633B7 /* SearchView.swift in Sources */,

@@ -5,7 +5,6 @@ struct ReminderDetailView: View {
     @Environment(ReminderService.self) private var service
     @Environment(\.dismiss) private var dismiss
     let reminderID: String
-    var onComplete: ((String) -> Void)?
 
     @State private var showDeleteConfirmation = false
     @State private var showNotTodayAlert = false
@@ -197,8 +196,8 @@ struct ReminderDetailView: View {
 
             Section {
                 Toggle("In Progress", isOn: Binding(
-                    get: { service.inProgressIDs.contains(reminderID) },
-                    set: { _ in service.toggleInProgress(reminderID) }
+                    get: { item?.isInProgress ?? false },
+                    set: { _ in try? service.toggleInProgress(identifier: reminderID) }
                 ))
 
                 if let item {
@@ -312,7 +311,6 @@ struct ReminderDetailView: View {
         if !item.isCompleted {
             do {
                 let nextDate = try service.completeReminder(identifier: item.id)
-                onComplete?(item.id)
                 if let nextDate {
                     showToast("\(item.title) — next due \(nextDate.formatted(.dateTime.month(.abbreviated).day().year()))")
                 } else {
