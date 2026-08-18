@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Identifies which reminders a presented date picker will move.
 struct PickDateTargets: Identifiable {
@@ -61,6 +62,29 @@ struct ContentView: View {
         }
     }
 
+    /// The on-screen sections, in display order — including Upcoming and
+    /// Completed only while they're actually shown, so the export matches what
+    /// the user is looking at.
+    private var exportGroups: [ReminderExport.Group] {
+        var groups = groupedOverdue.map {
+            ReminderExport.Group(title: "Overdue — \($0.0)", items: $0.1)
+        }
+        groups.append(ReminderExport.Group(title: "Today", items: orderedTodayReminders))
+        if showUpcoming {
+            for (dayLabel, listGroups) in groupedUpcoming {
+                for (listName, items) in listGroups {
+                    groups.append(ReminderExport.Group(title: "Upcoming — \(dayLabel) — \(listName)", items: items))
+                }
+            }
+        }
+        if showCompleted {
+            groups.append(contentsOf: groupedCompleted.map {
+                ReminderExport.Group(title: "Completed Today — \($0.0)", items: $0.1)
+            })
+        }
+        return groups
+    }
+
     // MARK: - Date shortcuts
 
     private var tomorrow: Date {
@@ -100,10 +124,25 @@ struct ContentView: View {
             }
             .navigationTitle(isSelecting && !selectedIDs.isEmpty ? "\(selectedIDs.count) Selected" : "DanRems")
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItemGroup(placement: .topBarLeading) {
                     if !isSelecting {
                         Button { showSearch = true } label: {
                             Label("Search", systemImage: "magnifyingglass")
+                        }
+                        ShareLink(
+                            item: ReminderExport.markdown(
+                                groups: exportGroups,
+                                inProgressIDs: service.inProgressIDs
+                            ),
+                            subject: Text("DanRems reminders")
+                        ) {
+                            Label("Share", systemImage: "square.and.arrow.up")
+                        }
+                        // The share sheet offers Copy too; this is the one-tap path.
+                        .contextMenu {
+                            Button { copyDisplayedReminders() } label: {
+                                Label("Copy to Clipboard", systemImage: "doc.on.doc")
+                            }
                         }
                     }
                 }
@@ -207,6 +246,18 @@ struct ContentView: View {
 
     private func toggleSelection(_ id: String) {
         if selectedIDs.contains(id) { selectedIDs.remove(id) } else { selectedIDs.insert(id) }
+    }
+
+    private func copyDisplayedReminders() {
+        let groups = exportGroups
+        let count = ReminderExport.itemCount(in: groups)
+        UIPasteboard.general.string = ReminderExport.markdown(
+            groups: groups,
+            inProgressIDs: service.inProgressIDs
+        )
+        showToast(count == 0
+            ? "Nothing to copy"
+            : "Copied \(count) reminder\(count == 1 ? "" : "s")")
     }
 
     private func rescheduleSelected(to date: Date) {

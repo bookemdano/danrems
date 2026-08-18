@@ -17,6 +17,7 @@
 		6E47FF2CA2D11A7F16CB14D0 /* StoryPointsControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD1678F6DDD158C80EE76FB3 /* StoryPointsControls.swift */; };
 		7CFF5CEFE5EA73EA742054D1 /* StoryPoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7D10C51DBC0ADBF1C62904B /* StoryPoints.swift */; };
 		7E39BF87C4186E5F8C9B762F /* DateHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ECBC028F7356A131E98DCCF /* DateHelpers.swift */; };
+		7E8247713182EFC05E0F5337 /* ReminderExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCB025C4A86F26F593592B0E /* ReminderExport.swift */; };
 		81B2C3EC1D9D3487ABF155ED /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8D4EE065FF8CB074919B781D /* Assets.xcassets */; };
 		A699A433F53EA0635E62782B /* ReminderItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0462F6EC6C8B7C92A9BA45 /* ReminderItem.swift */; };
 		CFCEDACAE3D8D2E45635DF0E /* DanRemsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3B45DFC6E8BC6C32916F7EE /* DanRemsApp.swift */; };
@@ -39,6 +40,7 @@
 		CF15496CA6E8C4E2C7DB2C8A /* PickDateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickDateView.swift; sourceTree = "<group>"; };
 		DCD586BC7842D0AD2BAEFE1B /* ReminderRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderRow.swift; sourceTree = "<group>"; };
 		E7D10C51DBC0ADBF1C62904B /* StoryPoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryPoints.swift; sourceTree = "<group>"; };
+		FCB025C4A86F26F593592B0E /* ReminderExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderExport.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -113,6 +115,7 @@
 		FE9A2B4AF857278425365981 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				FCB025C4A86F26F593592B0E /* ReminderExport.swift */,
 				AD0462F6EC6C8B7C92A9BA45 /* ReminderItem.swift */,
 				E7D10C51DBC0ADBF1C62904B /* StoryPoints.swift */,
 			);
@@ -197,6 +200,7 @@
 				EA15BD443D1BA76EC2DBD91B /* PickDateView.swift in Sources */,
 				598CD1303C90E9C7ABE51881 /* ReminderDetailView.swift in Sources */,
 				5C60069545C4FC4CDA26F4B3 /* ReminderEditView.swift in Sources */,
+				7E8247713182EFC05E0F5337 /* ReminderExport.swift in Sources */,
 				A699A433F53EA0635E62782B /* ReminderItem.swift in Sources */,
 				4AB3489C18922B9C387811C1 /* ReminderRow.swift in Sources */,
 				6BECB5B03FCCF0454328F252 /* ReminderService.swift in Sources */,
