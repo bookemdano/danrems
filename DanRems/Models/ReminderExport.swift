@@ -38,7 +38,7 @@ enum ReminderExport {
         lines.append("")
 
         for group in populated {
-            lines.append("## \(group.title)\(tally(group.items))")
+            lines.append("## \(group.title)\(ReminderTally(group.items).exportSuffix)")
             for item in group.items {
                 lines.append(bullet(for: item))
                 if includeNotes, let notes = item.displayNotes {
@@ -63,20 +63,18 @@ enum ReminderExport {
     private static func summary(for items: [ReminderItem]) -> String {
         let open = items.filter { !$0.isCompleted }
         var parts = ["\(items.count) reminder\(items.count == 1 ? "" : "s") shown"]
-        if let points = format(total(open)) {
+        if let points = ReminderTally(open).pointsText {
             parts.append("\(points) points still open")
+        }
+        let done = items.count - open.count
+        if done > 0 {
+            parts.append("\(done) completed")
         }
         let unsized = open.filter { $0.storyPoints == nil }.count
         if unsized > 0 {
             parts.append("\(unsized) not yet sized")
         }
         return parts.joined(separator: " · ")
-    }
-
-    private static func tally(_ items: [ReminderItem]) -> String {
-        let count = "\(items.count) item\(items.count == 1 ? "" : "s")"
-        guard let points = format(total(items)) else { return " (\(count))" }
-        return " (\(count), \(points) pts)"
     }
 
     private static func bullet(for item: ReminderItem) -> String {
@@ -117,13 +115,4 @@ enum ReminderExport {
         return interval == 1 ? "repeats every \(unit)" : "repeats every \(interval) \(unit)s"
     }
 
-    private static func total(_ items: [ReminderItem]) -> Double {
-        items.compactMap(\.storyPoints).reduce(0) { $0 + $1.value }
-    }
-
-    /// Nil when nothing in the set carries a size, so callers can omit the
-    /// clause entirely rather than printing a misleading "0 pts".
-    private static func format(_ total: Double) -> String? {
-        total > 0 ? String(format: "%g", total) : nil
-    }
 }

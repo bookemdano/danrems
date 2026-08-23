@@ -363,15 +363,17 @@ struct ContentView: View {
                     }
                 }
                 ForEach(groupedOverdue, id: \.0) { listName, items in
-                    Section("Overdue - \(listName)") {
+                    Section {
                         ForEach(items) { item in
                             overdueRow(for: item)
                         }
+                    } header: {
+                        ReminderSectionHeader(title: "Overdue - \(listName)", items: items)
                     }
                 }
             }
 
-            Section("Today") {
+            Section {
                 if isSelecting {
                     ForEach(orderedTodayReminders) { item in
                         todayRow(for: item)
@@ -385,6 +387,8 @@ struct ContentView: View {
                         saveTodayOrder()
                     }
                 }
+            } header: {
+                ReminderSectionHeader(title: "Today", items: orderedTodayReminders)
             }
 
             Section {
@@ -407,12 +411,14 @@ struct ContentView: View {
             if showUpcoming && !upcomingReminders.isEmpty {
                 ForEach(groupedUpcoming, id: \.0) { dayLabel, listGroups in
                     ForEach(listGroups, id: \.0) { listName, items in
-                        Section("\(dayLabel) - \(listName)") {
+                        Section {
                             ForEach(items) { item in
                                 NavigationLink(value: item) {
                                     ReminderRow(item: item, onComplete: handleComplete)
                                 }
                             }
+                        } header: {
+                            ReminderSectionHeader(title: "\(dayLabel) - \(listName)", items: items)
                         }
                     }
                 }
@@ -431,7 +437,7 @@ struct ContentView: View {
 
             if showCompleted && !completedReminders.isEmpty {
                 ForEach(groupedCompleted, id: \.0) { listName, items in
-                    Section("Completed - \(listName)") {
+                    Section {
                         ForEach(items) { item in
                             NavigationLink(value: item) {
                                 ReminderRow(item: item, onComplete: handleComplete, onUncomplete: {
@@ -439,6 +445,8 @@ struct ContentView: View {
                                 })
                             }
                         }
+                    } header: {
+                        ReminderSectionHeader(title: "Completed - \(listName)", items: items)
                     }
                 }
             }
