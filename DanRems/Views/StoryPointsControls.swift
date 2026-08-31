@@ -40,20 +40,31 @@ struct StoryPointsField: View {
                 .onAppear { text = selection?.label ?? "" }
         }
 
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(StoryPoints.presets) { preset in
-                    Button(preset.label) {
-                        selection = preset
-                        text = preset.label
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(selection == preset ? Color.accentColor : Color.gray)
+        // `.borderless` matters: with a bordered/automatic style the Form row
+        // swallows the click and routes it to the row rather than the chip
+        // under the pointer, which is why picking a preset did nothing on Mac.
+        HStack(spacing: 8) {
+            ForEach(StoryPoints.presets) { preset in
+                Button {
+                    selection = preset
+                    text = preset.label
+                } label: {
+                    Text(preset.label)
+                        .font(.subheadline.weight(.medium))
+                        .monospacedDigit()
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 7)
+                        .foregroundStyle(selection == preset ? Color.white : Color.primary)
+                        .background(
+                            selection == preset ? Color.accentColor : Color.gray.opacity(0.2),
+                            in: Capsule()
+                        )
+                        .contentShape(Capsule())
                 }
+                .buttonStyle(.borderless)
             }
-            .padding(.vertical, 2)
         }
-        .scrollClipDisabled()
+        .padding(.vertical, 2)
     }
 }
 

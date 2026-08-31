@@ -9,7 +9,6 @@ struct ReminderDetailView: View {
     @State private var showDeleteConfirmation = false
     @State private var showNotTodayAlert = false
     @State private var errorMessage: String?
-    @State private var toastMessage: String?
     @State private var loaded = false
 
     // Editable state
@@ -77,10 +76,41 @@ struct ReminderDetailView: View {
         }
         .navigationTitle(title.isEmpty ? "Reminder" : title)
         .toolbar {
-            if item != nil {
+            if let item {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        if !item.isCompleted && !item.isDueToday {
+                            showNotTodayAlert = true
+                        } else {
+                            completeItem(item)
+                        }
+                    } label: {
+                        Label(
+                            item.isCompleted ? "Mark Incomplete" : "Mark Complete",
+                            systemImage: item.isCompleted ? "circle" : "checkmark.circle"
+                        )
+                    }
+                    .confirmationDialog(
+                        "This item isn't due today.",
+                        isPresented: $showNotTodayAlert,
+                        titleVisibility: .visible
+                    ) {
+                        Button("Move to Today & Complete") {
+                            try? service.moveToToday(identifier: item.id)
+                            completeItem(item)
+                        }
+                        Button("Complete Anyway") {
+                            completeItem(item)
+                        }
+                        Button("Cancel", role: .cancel) {}
+                    }
+                }
                 ToolbarItem(placement: .confirmationAction) {
+                    // Gated on the title alone, not `hasChanges`: a toolbar
+                    // button's disabled state doesn't reliably refresh when only
+                    // a form value changed, which left Save stuck greyed out.
                     Button("Save") { save() }
-                        .disabled(!hasChanges || title.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
         }
@@ -109,19 +139,6 @@ struct ReminderDetailView: View {
         } message: {
             if let errorMessage { Text(errorMessage) }
         }
-        .overlay(alignment: .bottom) {
-            if let toastMessage {
-                Text(toastMessage)
-                    .font(.subheadline)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(.thinMaterial, in: Capsule())
-                    .shadow(radius: 4)
-                    .padding(.bottom, 32)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-        }
-        .animation(.easeInOut, value: toastMessage)
         .onAppear { if !loaded { loadState(); loaded = true } }
     }
 
@@ -200,31 +217,6 @@ struct ReminderDetailView: View {
                     set: { _ in try? service.toggleInProgress(identifier: reminderID) }
                 ))
 
-                if let item {
-                    Button {
-                        if !item.isCompleted && !item.isDueToday {
-                            showNotTodayAlert = true
-                        } else {
-                            completeItem(item)
-                        }
-                    } label: {
-                        Label(
-                            item.isCompleted ? "Mark Incomplete" : "Mark Complete",
-                            systemImage: item.isCompleted ? "circle" : "checkmark.circle"
-                        )
-                    }
-                    .confirmationDialog("This item isn't due today.", isPresented: $showNotTodayAlert, titleVisibility: .visible) {
-                        Button("Move to Today & Complete") {
-                            try? service.moveToToday(identifier: item.id)
-                            completeItem(item)
-                        }
-                        Button("Complete Anyway") {
-                            completeItem(item)
-                        }
-                        Button("Cancel", role: .cancel) {}
-                    }
-                }
-
                 Button(role: .destructive) {
                     showDeleteConfirmation = true
                 } label: {
@@ -288,19 +280,25 @@ struct ReminderDetailView: View {
         }
     }
 
-    private func save() {
+    /// Writes the edited fields back to the reminder. Callers handle dismissal
+    /// so completing can save first and then close.
+    private func applyChanges() throws {
         let calendar = service.calendars[selectedCalendarIndex]
         let date = hasDueDate ? dueDate : nil
         let noteText = notes.isEmpty ? nil : notes
         let rule = recurrenceType.rule(interval: recurrenceInterval)
 
+        try service.updateReminder(
+            identifier: reminderID, title: title, calendar: calendar,
+            dueDate: date, includeTime: includeTime,
+            notes: noteText, priority: priority,
+            storyPoints: storyPoints, recurrenceRule: rule
+        )
+    }
+
+    private func save() {
         do {
-            try service.updateReminder(
-                identifier: reminderID, title: title, calendar: calendar,
-                dueDate: date, includeTime: includeTime,
-                notes: noteText, priority: priority,
-                storyPoints: storyPoints, recurrenceRule: rule
-            )
+            try applyChanges()
             dismiss()
         } catch {
             errorMessage = error.localizedDescription
@@ -308,28 +306,18 @@ struct ReminderDetailView: View {
     }
 
     private func completeItem(_ item: ReminderItem) {
-        if !item.isCompleted {
-            do {
-                let nextDate = try service.completeReminder(identifier: item.id)
-                if let nextDate {
-                    showToast("\(item.title) — next due \(nextDate.formatted(.dateTime.month(.abbreviated).day().year()))")
-                } else {
-                    showToast("\(item.title) completed")
-                }
-            } catch {
-                errorMessage = error.localizedDescription
+        do {
+            if hasChanges && !title.trimmingCharacters(in: .whitespaces).isEmpty {
+                try applyChanges()
             }
-        } else {
-            try? service.toggleComplete(identifier: item.id)
+            if item.isCompleted {
+                try service.toggleComplete(identifier: item.id)
+            } else {
+                _ = try service.completeReminder(identifier: item.id)
+            }
             dismiss()
-        }
-    }
-
-    private func showToast(_ message: String) {
-        toastMessage = message
-        Task {
-            try? await Task.sleep(for: .seconds(2.5))
-            toastMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
         }
     }
 }

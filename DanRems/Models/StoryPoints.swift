@@ -13,8 +13,10 @@ struct StoryPoints: Hashable, Comparable, Identifiable, Sendable {
     static let range: ClosedRange<Double> = 0.1...100
 
     /// Conventional quick picks — a convenience, not the set of legal values.
+    /// The big rungs are off the bar since they never got picked; free entry
+    /// still takes any size in `range`.
     static let presets: [StoryPoints] =
-        ([1, 2, 3, 5, 8, 13, 20] as [Double]).compactMap(StoryPoints.init)
+        ([0.5, 1, 2, 3, 5, 8] as [Double]).compactMap(StoryPoints.init)
 
     let value: Double
 
