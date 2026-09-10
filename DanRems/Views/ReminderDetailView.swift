@@ -7,6 +7,7 @@ struct ReminderDetailView: View {
     let reminderID: String
 
     @State private var showDeleteConfirmation = false
+    @State private var showFollowUpDate = false
     @State private var showNotTodayAlert = false
     @State private var errorMessage: String?
     @State private var loaded = false
@@ -99,7 +100,7 @@ struct ReminderDetailView: View {
                             try? service.moveToToday(identifier: item.id)
                             completeItem(item)
                         }
-                        Button("Complete Anyway") {
+                        Button("Complete As Is") {
                             completeItem(item)
                         }
                         Button("Cancel", role: .cancel) {}
@@ -112,6 +113,19 @@ struct ReminderDetailView: View {
                     Button("Save") { save() }
                         .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
+            }
+        }
+        .sheet(isPresented: $showFollowUpDate) {
+            PickDateView(
+                count: 1,
+                title: "Follow Up",
+                actionLabel: "Create",
+                // The check-back is usually a while out, so start a month
+                // ahead rather than on today.
+                initialDate: Calendar.current.date(byAdding: .month, value: 1, to: Date().startOfDay)
+                    ?? Date().startOfDay
+            ) { date in
+                createFollowUp(on: date)
             }
         }
         .confirmationDialog(
@@ -217,6 +231,20 @@ struct ReminderDetailView: View {
                     set: { _ in try? service.toggleInProgress(identifier: reminderID) }
                 ))
 
+                Toggle(isOn: Binding(
+                    get: { item?.isFun ?? false },
+                    set: { _ in try? service.toggleFun(identifier: reminderID) }
+                )) {
+                    Label("Fun", systemImage: "party.popper.fill")
+                }
+                .tint(.pink)
+
+                Button {
+                    showFollowUpDate = true
+                } label: {
+                    Label("Follow Up", systemImage: "arrow.turn.up.right")
+                }
+
                 Button(role: .destructive) {
                     showDeleteConfirmation = true
                 } label: {
@@ -299,6 +327,21 @@ struct ReminderDetailView: View {
     private func save() {
         do {
             try applyChanges()
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Marks this item done and files an `F/U` copy for `date`. Any unsaved
+    /// edits go in first, so the follow-up copies what's on screen rather than
+    /// what was last written.
+    private func createFollowUp(on date: Date) {
+        do {
+            if hasChanges && !title.trimmingCharacters(in: .whitespaces).isEmpty {
+                try applyChanges()
+            }
+            try service.createFollowUp(identifier: reminderID, dueDate: date)
             dismiss()
         } catch {
             errorMessage = error.localizedDescription

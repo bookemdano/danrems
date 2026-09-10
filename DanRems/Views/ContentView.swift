@@ -8,8 +8,23 @@ struct PickDateTargets: Identifiable {
     var endsSelection = false
 }
 
+/// A transient bottom banner. When `reminderID` is set the banner is tappable
+/// and opens that reminder's detail page.
+struct Toast: Equatable {
+    let id = UUID()
+    let message: String
+    var reminderID: String?
+}
+
+/// Navigation value for pushing a detail page by identifier, for reminders we
+/// only know by ID (a just-completed item is no longer in the loaded list).
+struct ReminderDestination: Hashable {
+    let id: String
+}
+
 struct ContentView: View {
     @Environment(ReminderService.self) private var service
+    @Environment(\.scenePhase) private var scenePhase
     @State private var showCompleted = false
     @State private var showUpcoming = false
     @State private var upcomingDays = 3
@@ -18,10 +33,14 @@ struct ContentView: View {
     @State private var completedReminders: [ReminderItem] = []
     @State private var upcomingReminders: [ReminderItem] = []
     @State private var todayOrder: [String] = UserDefaults.standard.stringArray(forKey: "todayOrder") ?? []
-    @State private var toastMessage: String?
+    @State private var toast: Toast?
+    @State private var navPath = NavigationPath()
     @State private var isSelecting = false
     @State private var selectedIDs: Set<String> = []
     @State private var pickDateTargets: PickDateTargets?
+    /// Gates the foreground refresh: `scenePhase` reaches `.active` during
+    /// launch too, and that first load is `.task`'s job.
+    @State private var didInitialLoad = false
 
     private var overdueReminders: [ReminderItem] {
         service.reminders.filter(\.isOverdue)
@@ -98,7 +117,15 @@ struct ContentView: View {
         let daysToSat = ((7 - weekday) % 7 == 0) ? 7 : (7 - weekday)
         return cal.date(byAdding: .day, value: daysToSat, to: today)!
     }
-
+    
+    private var nextWeek: Date {
+        let cal = Calendar.current
+        let today = Date().startOfDay
+        let weekday = cal.component(.weekday, from: today)
+        let daysToNextMonday = (9 - weekday) % 7
+        return cal.date(byAdding: .day, value: daysToNextMonday, to: today)!
+    }
+    
     private var nextMonth: Date {
         let cal = Calendar.current
         var comps = cal.dateComponents([.year, .month], from: Date())
@@ -108,7 +135,7 @@ struct ContentView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navPath) {
             Group {
                 if service.authorizationStatus == .fullAccess {
                     remindersList
@@ -185,7 +212,7 @@ struct ContentView: View {
             }
             .sheet(item: $pickDateTargets) { targets in
                 PickDateView(count: targets.ids.count) { date in
-                    try? service.reschedule(identifiers: targets.ids, to: date)
+                    move(targets.ids, to: date)
                     if targets.endsSelection {
                         selectedIDs = []
                         isSelecting = false
@@ -195,21 +222,33 @@ struct ContentView: View {
             .task {
                 await service.requestAccess()
                 syncTodayOrder()
+                didInitialLoad = true
             }
-            .refreshable {
-                await service.fetchReminders()
-                syncTodayOrder()
-                if showCompleted {
-                    completedReminders = await service.fetchCompletedToday()
-                }
-                if showUpcoming {
-                    upcomingReminders = await service.fetchUpcoming(days: upcomingDays)
-                }
+            .refreshable { await refreshAll() }
+            .onChange(of: scenePhase) { _, phase in
+                // What's on screen was fetched before we were suspended: Apple
+                // Reminders may have moved on, and if the day rolled over while
+                // we were away, "today" and "overdue" mean something different
+                // now.
+                guard phase == .active, didInitialLoad else { return }
+                Task { await refreshAll() }
             }
         }
     }
 
     // MARK: - Actions
+
+    /// Reloads the main list plus whichever optional sections are showing.
+    private func refreshAll() async {
+        await service.refresh()
+        syncTodayOrder()
+        if showCompleted {
+            completedReminders = await service.fetchCompletedToday()
+        }
+        if showUpcoming {
+            upcomingReminders = await service.fetchUpcoming(days: upcomingDays)
+        }
+    }
 
     private func syncTodayOrder() {
         let today = service.reminders.filter { $0.isDueToday && !$0.isOverdue }
@@ -228,18 +267,38 @@ struct ContentView: View {
         // completeReminder clears the #wip tag itself, so there's nothing to
         // reset here — the next occurrence comes back not-started.
         if let nextDate {
-            showToast("\(title) — next due \(nextDate.formatted(.dateTime.month(.abbreviated).day().year()))")
+            showToast("\(title) — next due \(nextDate.formatted(.dateTime.month(.abbreviated).day().year()))",
+                      reminderID: id)
         } else {
-            showToast("\(title) completed")
+            showToast("\(title) completed", reminderID: id)
         }
     }
 
-    private func showToast(_ message: String) {
-        toastMessage = message
+    private func showToast(_ message: String, reminderID: String? = nil) {
+        let new = Toast(message: message, reminderID: reminderID)
+        toast = new
         Task {
             try? await Task.sleep(for: .seconds(2.5))
-            toastMessage = nil
+            // Leave a newer toast alone; only this one's timer may clear it.
+            if toast?.id == new.id { toast = nil }
         }
+    }
+
+    @ViewBuilder
+    private func toastLabel(_ message: String, tappable: Bool) -> some View {
+        HStack(spacing: 6) {
+            Text(message)
+            if tappable {
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .font(.subheadline)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.thinMaterial, in: Capsule())
+        .shadow(radius: 4)
     }
 
     private func toggleSelection(_ id: String) {
@@ -255,8 +314,16 @@ struct ContentView: View {
             : "Copied \(count) reminder\(count == 1 ? "" : "s")")
     }
 
+    /// Moving an item can move it into or out of the Upcoming window, which is
+    /// fetched separately from `service.reminders` and so won't update itself.
+    private func move(_ ids: [String], to date: Date) {
+        try? service.reschedule(identifiers: ids, to: date)
+        guard showUpcoming else { return }
+        Task { upcomingReminders = await service.fetchUpcoming(days: upcomingDays) }
+    }
+
     private func rescheduleSelected(to date: Date) {
-        try? service.reschedule(identifiers: Array(selectedIDs), to: date)
+        move(Array(selectedIDs), to: date)
         selectedIDs = []
         isSelecting = false
     }
@@ -343,10 +410,11 @@ struct ContentView: View {
 
     @ViewBuilder
     private func dateContextMenu(for item: ReminderItem) -> some View {
-        Button("Move to Today") { try? service.reschedule(identifiers: [item.id], to: Date().startOfDay) }
-        Button("Move to Tomorrow") { try? service.reschedule(identifiers: [item.id], to: tomorrow) }
-        Button("Move to This Weekend") { try? service.reschedule(identifiers: [item.id], to: thisWeekend) }
-        Button("Move to Next Month") { try? service.reschedule(identifiers: [item.id], to: nextMonth) }
+        Button("Move to Today") { move([item.id], to: Date().startOfDay) }
+        Button("Move to Tomorrow") { move([item.id], to: tomorrow) }
+        Button("Move to This Weekend") { move([item.id], to: thisWeekend) }
+        Button("Move to Next Week") { move([item.id], to: nextWeek) }
+        Button("Move to Next Month") { move([item.id], to: nextMonth) }
         Button("Pick Date...") { pickDateTargets = PickDateTargets(ids: [item.id]) }
     }
 
@@ -416,6 +484,7 @@ struct ContentView: View {
                                 NavigationLink(value: item) {
                                     ReminderRow(item: item, onComplete: handleComplete)
                                 }
+                                .contextMenu { dateContextMenu(for: item) }
                             }
                         } header: {
                             ReminderSectionHeader(title: "\(dayLabel) - \(listName)", items: items)
@@ -454,6 +523,9 @@ struct ContentView: View {
         .navigationDestination(for: ReminderItem.self) { item in
             ReminderDetailView(reminderID: item.id)
         }
+        .navigationDestination(for: ReminderDestination.self) { destination in
+            ReminderDetailView(reminderID: destination.id)
+        }
         .overlay {
             if service.reminders.isEmpty && !showCompleted && !showUpcoming {
                 ContentUnavailableView(
@@ -464,17 +536,24 @@ struct ContentView: View {
             }
         }
         .overlay(alignment: .bottom) {
-            if let toastMessage {
-                Text(toastMessage)
-                    .font(.subheadline)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(.thinMaterial, in: Capsule())
-                    .shadow(radius: 4)
-                    .padding(.bottom, 32)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            if let toast {
+                Group {
+                    if let reminderID = toast.reminderID {
+                        Button {
+                            self.toast = nil
+                            navPath.append(ReminderDestination(id: reminderID))
+                        } label: {
+                            toastLabel(toast.message, tappable: true)
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        toastLabel(toast.message, tappable: false)
+                    }
+                }
+                .padding(.bottom, 32)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .animation(.easeInOut, value: toastMessage)
+        .animation(.easeInOut, value: toast)
     }
 }

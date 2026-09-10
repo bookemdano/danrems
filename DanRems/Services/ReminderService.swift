@@ -26,8 +26,26 @@ final class ReminderService {
         reminder.notes = ReminderNotes.encode(
             notes: reminder.notes,
             points: StoryPoints.parse(from: reminder.notes),
-            inProgress: inProgress
+            inProgress: inProgress,
+            isFun: ReminderNotes.isFun(reminder.notes)
         )
+    }
+
+    /// Flips the `#fun` tag on the reminder itself. Unlike `#wip` this one
+    /// describes the task rather than its state, so completing leaves it be and
+    /// the next occurrence of a recurring reminder still shows up as fun.
+    func toggleFun(identifier: String) throws {
+        guard let reminder = eventStore.calendarItem(withIdentifier: identifier) as? EKReminder else {
+            throw ReminderError.notFound
+        }
+        reminder.notes = ReminderNotes.encode(
+            notes: reminder.notes,
+            points: StoryPoints.parse(from: reminder.notes),
+            inProgress: ReminderNotes.isInProgress(reminder.notes),
+            isFun: !ReminderNotes.isFun(reminder.notes)
+        )
+        try eventStore.save(reminder, commit: true)
+        Task { await fetchReminders() }
     }
 
     func reschedule(identifiers: [String], to date: Date) throws {
@@ -62,6 +80,21 @@ final class ReminderService {
 
     func loadCalendars() {
         calendars = eventStore.calendars(for: .reminder)
+    }
+
+    /// Reloads everything after time has passed outside the app — coming back
+    /// from the background, or from being tombstoned outright.
+    ///
+    /// `reset()` matters: a suspended store keeps handing back the objects it
+    /// had when we went away, so edits made in Apple Reminders meanwhile would
+    /// stay invisible until the process restarted. Calendars are reloaded too,
+    /// since a list can be added or deleted while we're gone.
+    func refresh() async {
+        authorizationStatus = EKEventStore.authorizationStatus(for: .reminder)
+        guard authorizationStatus == .fullAccess else { return }
+        eventStore.reset()
+        loadCalendars()
+        await fetchReminders()
     }
 
     private struct UncheckedSendableReminders: @unchecked Sendable {
@@ -162,7 +195,9 @@ final class ReminderService {
             }
             reminder.dueDateComponents = Calendar.current.dateComponents(components, from: dueDate)
         }
-        reminder.notes = ReminderNotes.encode(notes: notes, points: storyPoints, inProgress: false)
+        reminder.notes = ReminderNotes.encode(
+            notes: notes, points: storyPoints, inProgress: false, isFun: false
+        )
         reminder.priority = priority
         if let recurrenceRule {
             reminder.addRecurrenceRule(recurrenceRule)
@@ -197,12 +232,13 @@ final class ReminderService {
         } else {
             reminder.dueDateComponents = nil
         }
-        // The edit form has no "in progress" control, so carry the existing
-        // flag across rather than dropping it on every save.
+        // The edit form has no "in progress" or "fun" control, so carry the
+        // existing flags across rather than dropping them on every save.
         reminder.notes = ReminderNotes.encode(
             notes: notes,
             points: storyPoints,
-            inProgress: ReminderNotes.isInProgress(reminder.notes)
+            inProgress: ReminderNotes.isInProgress(reminder.notes),
+            isFun: ReminderNotes.isFun(reminder.notes)
         )
         reminder.priority = priority
         if let existing = reminder.recurrenceRules {
@@ -274,6 +310,42 @@ final class ReminderService {
         reminders.removeAll { $0.id == identifier }
         Task { await fetchReminders() }
         return nextDueDate
+    }
+
+    /// The tag that marks a reminder as a check-back on something already done.
+    static let followUpPrefix = "F/U "
+
+    /// Completes a reminder and files a copy of it for a later date — the
+    /// "I fixed the gurgling pipe, now check next month that it stayed fixed"
+    /// pattern.
+    ///
+    /// The copy never inherits recurrence even when the original repeats: a
+    /// follow-up is a one-off check, not a new schedule. It's created before
+    /// the original is completed so a failure can't lose the work.
+    func createFollowUp(identifier: String, dueDate: Date) throws {
+        guard let reminder = eventStore.calendarItem(withIdentifier: identifier) as? EKReminder else {
+            throw ReminderError.notFound
+        }
+
+        let title = reminder.title ?? ""
+        let followUp = EKReminder(eventStore: eventStore)
+        followUp.title = title.hasPrefix(Self.followUpPrefix) ? title : Self.followUpPrefix + title
+        followUp.calendar = reminder.calendar
+        followUp.priority = reminder.priority
+        followUp.dueDateComponents = Calendar.current.dateComponents(
+            [.year, .month, .day], from: dueDate
+        )
+        // Carries the details and the tags across, minus `#wip`: a follow-up
+        // starts fresh no matter how the original was left.
+        followUp.notes = ReminderNotes.encode(
+            notes: reminder.notes,
+            points: StoryPoints.parse(from: reminder.notes),
+            inProgress: false,
+            isFun: ReminderNotes.isFun(reminder.notes)
+        )
+        try eventStore.save(followUp, commit: true)
+
+        _ = try completeReminder(identifier: identifier)
     }
 
     func deleteReminder(identifier: String) throws {

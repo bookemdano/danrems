@@ -19,10 +19,11 @@ struct ReminderItem: Identifiable, Hashable, Sendable {
     var recurrenceInterval: Int?
     var storyPoints: StoryPoints?
     var isInProgress: Bool
+    var isFun: Bool
 
-    /// Notes with the `#sp<n>` and `#wip` tags removed — what every editor and
-    /// label should show, since the tags are storage rather than something Dan
-    /// typed.
+    /// Notes with the `#sp<n>`, `#wip` and `#fun` tags removed — what every
+    /// editor and label should show, since the tags are storage rather than
+    /// something Dan typed.
     var displayNotes: String? {
         ReminderNotes.strippingTags(from: notes)
     }
@@ -96,7 +97,8 @@ struct ReminderItem: Identifiable, Hashable, Sendable {
             recurrenceFrequency: rule?.frequency,
             recurrenceInterval: rule?.interval,
             storyPoints: StoryPoints.parse(from: reminder.notes),
-            isInProgress: ReminderNotes.isInProgress(reminder.notes)
+            isInProgress: ReminderNotes.isInProgress(reminder.notes),
+            isFun: ReminderNotes.isFun(reminder.notes)
         )
     }
 
@@ -109,7 +111,8 @@ struct ReminderItem: Identifiable, Hashable, Sendable {
         lhs.priority == rhs.priority &&
         lhs.listIdentifier == rhs.listIdentifier &&
         lhs.storyPoints == rhs.storyPoints &&
-        lhs.isInProgress == rhs.isInProgress
+        lhs.isInProgress == rhs.isInProgress &&
+        lhs.isFun == rhs.isFun
     }
 
     func hash(into hasher: inout Hasher) {

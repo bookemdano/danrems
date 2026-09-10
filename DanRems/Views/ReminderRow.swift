@@ -37,7 +37,7 @@ struct ReminderRow: View {
                         let nextDate = try? service.completeReminder(identifier: item.id)
                         onComplete?(item.id, item.title, nextDate)
                     }
-                    Button("Complete Anyway") {
+                    Button("Complete As Is") {
                         let nextDate = try? service.completeReminder(identifier: item.id)
                         onComplete?(item.id, item.title, nextDate)
                     }
@@ -58,6 +58,20 @@ struct ReminderRow: View {
 
                     if let points = item.storyPoints {
                         StoryPointsBadge(points: points)
+                    }
+
+                    if item.isFun {
+                        Image(systemName: "party.popper.fill")
+                            .font(.caption)
+                            .foregroundStyle(.pink)
+                            .accessibilityLabel("Fun")
+                    }
+
+                    if item.recurrenceFrequency != nil {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .accessibilityLabel("Repeating")
                     }
                 }
 
