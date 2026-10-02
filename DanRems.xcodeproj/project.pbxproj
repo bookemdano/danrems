@@ -21,6 +21,10 @@
 		7CFF5CEFE5EA73EA742054D1 /* StoryPoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7D10C51DBC0ADBF1C62904B /* StoryPoints.swift */; };
 		7E39BF87C4186E5F8C9B762F /* DateHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ECBC028F7356A131E98DCCF /* DateHelpers.swift */; };
 		7E8247713182EFC05E0F5337 /* ReminderExport.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCB025C4A86F26F593592B0E /* ReminderExport.swift */; };
+		8835CA71BFA8AD9DADE3157F /* PlanPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4CA817A245799F55B4027B5 /* PlanPreviewView.swift */; };
+		222D2F985CDD3169720E80CB /* ResolvedPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F57FE7FE6144E66A5929895 /* ResolvedPlan.swift */; };
+		9CC0EF39D10B819AF0926332 /* ReminderRef.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CD69195DD42916D5F49CEF3 /* ReminderRef.swift */; };
+		ED78D14ADC8FEFFD0441E4A6 /* ReminderPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16DB714089C0F618C2600F8A /* ReminderPlan.swift */; };
 		81B2C3EC1D9D3487ABF155ED /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8D4EE065FF8CB074919B781D /* Assets.xcassets */; };
 		A699A433F53EA0635E62782B /* ReminderItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0462F6EC6C8B7C92A9BA45 /* ReminderItem.swift */; };
 		CFCEDACAE3D8D2E45635DF0E /* DanRemsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3B45DFC6E8BC6C32916F7EE /* DanRemsApp.swift */; };
@@ -48,6 +52,10 @@
 		E7D10C51DBC0ADBF1C62904B /* StoryPoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryPoints.swift; sourceTree = "<group>"; };
 		ED0F9EEB45F5D0A7E0BFFB5B /* ReminderNotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderNotes.swift; sourceTree = "<group>"; };
 		FCB025C4A86F26F593592B0E /* ReminderExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderExport.swift; sourceTree = "<group>"; };
+		B4CA817A245799F55B4027B5 /* PlanPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanPreviewView.swift; sourceTree = "<group>"; };
+		3F57FE7FE6144E66A5929895 /* ResolvedPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResolvedPlan.swift; sourceTree = "<group>"; };
+		4CD69195DD42916D5F49CEF3 /* ReminderRef.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderRef.swift; sourceTree = "<group>"; };
+		16DB714089C0F618C2600F8A /* ReminderPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderPlan.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -83,6 +91,7 @@
 				3344701360C35411F886BD64 /* ReminderDetailView.swift */,
 				770E2C8CEAAFBB69DB3588D7 /* ReminderEditView.swift */,
 				DCD586BC7842D0AD2BAEFE1B /* ReminderRow.swift */,
+				B4CA817A245799F55B4027B5 /* PlanPreviewView.swift */,
 				A9598B3C4D4E05994B2089E3 /* ReminderSectionHeader.swift */,
 				37E0BB64565029528D786B01 /* SearchView.swift */,
 				CD1678F6DDD158C80EE76FB3 /* StoryPointsControls.swift */,
@@ -125,6 +134,9 @@
 			isa = PBXGroup;
 			children = (
 				FCB025C4A86F26F593592B0E /* ReminderExport.swift */,
+				3F57FE7FE6144E66A5929895 /* ResolvedPlan.swift */,
+				4CD69195DD42916D5F49CEF3 /* ReminderRef.swift */,
+				16DB714089C0F618C2600F8A /* ReminderPlan.swift */,
 				AD0462F6EC6C8B7C92A9BA45 /* ReminderItem.swift */,
 				ED0F9EEB45F5D0A7E0BFFB5B /* ReminderNotes.swift */,
 				6365C996C4BAC77BDF923C06 /* ReminderTally.swift */,
@@ -212,6 +224,10 @@
 				598CD1303C90E9C7ABE51881 /* ReminderDetailView.swift in Sources */,
 				5C60069545C4FC4CDA26F4B3 /* ReminderEditView.swift in Sources */,
 				7E8247713182EFC05E0F5337 /* ReminderExport.swift in Sources */,
+				8835CA71BFA8AD9DADE3157F /* PlanPreviewView.swift in Sources */,
+				222D2F985CDD3169720E80CB /* ResolvedPlan.swift in Sources */,
+				9CC0EF39D10B819AF0926332 /* ReminderRef.swift in Sources */,
+				ED78D14ADC8FEFFD0441E4A6 /* ReminderPlan.swift in Sources */,
 				A699A433F53EA0635E62782B /* ReminderItem.swift in Sources */,
 				7B9F985DD89FC2254B4CEA92 /* ReminderNotes.swift in Sources */,
 				4AB3489C18922B9C387811C1 /* ReminderRow.swift in Sources */,

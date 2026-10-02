@@ -63,6 +63,69 @@ final class ReminderService {
         Task { await fetchReminders() }
     }
 
+    /// Writes a plan's edits in a single commit.
+    ///
+    /// A nil field on an `Edit` means the plan didn't mention it, so the value
+    /// is carried across from the reminder as it stands rather than reset to a
+    /// default — that's what lets a plan change only a size without clearing
+    /// the `#wip` flag sitting next to it in the notes.
+    ///
+    /// Reminders that have since vanished are skipped rather than thrown on:
+    /// a plan can sit on the clipboard for a while, and one deleted item
+    /// shouldn't cost the user the rest of the plan. The returned count is what
+    /// actually landed, so the toast can't overstate it.
+    @discardableResult
+    func apply(_ plan: ResolvedPlan) throws -> Int {
+        var applied = 0
+        for edit in plan.edits {
+            guard let reminder = eventStore.calendarItem(withIdentifier: edit.item.id) as? EKReminder else { continue }
+
+            if let due = edit.due {
+                // Day only, same as `reschedule` — a plan never sets a time.
+                let components = Calendar.current.dateComponents([.year, .month, .day], from: due)
+                var existing = reminder.dueDateComponents ?? DateComponents()
+                existing.year = components.year
+                existing.month = components.month
+                existing.day = components.day
+                reminder.dueDateComponents = existing
+            }
+
+            if edit.points != nil || edit.wip != nil || edit.fun != nil {
+                reminder.notes = ReminderNotes.encode(
+                    notes: reminder.notes,
+                    points: edit.points ?? StoryPoints.parse(from: reminder.notes),
+                    inProgress: edit.wip ?? ReminderNotes.isInProgress(reminder.notes),
+                    isFun: edit.fun ?? ReminderNotes.isFun(reminder.notes)
+                )
+            }
+
+            if let list = edit.list {
+                reminder.calendar = list
+            }
+
+            try eventStore.save(reminder, commit: false)
+            applied += 1
+        }
+
+        guard applied > 0 else { return 0 }
+        try eventStore.commit()
+        Task { await fetchReminders() }
+        return applied
+    }
+
+    /// The pool a pasted plan is resolved against: everything still open
+    /// regardless of due date, plus what was finished today. Wider than what's
+    /// on screen on purpose — the user may have scrolled a section away, or
+    /// completed an item, between copying the export and pasting the plan.
+    func fetchPlanCandidates() async -> [ReminderItem] {
+        let openPredicate = eventStore.predicateForIncompleteReminders(
+            withDueDateStarting: nil, ending: nil, calendars: nil
+        )
+        let open = await fetchReminderItems(matching: openPredicate)
+        let completed = await fetchCompletedToday()
+        return open + completed
+    }
+
     func requestAccess() async {
         do {
             let granted = try await eventStore.requestFullAccessToReminders()

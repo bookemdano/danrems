@@ -41,6 +41,9 @@ struct ContentView: View {
     /// Gates the foreground refresh: `scenePhase` reaches `.active` during
     /// launch too, and that first load is `.task`'s job.
     @State private var didInitialLoad = false
+    /// A plan read off the clipboard, waiting for the user to approve it.
+    @State private var pendingPlan: ResolvedPlan?
+    @State private var planError: String?
 
     private var overdueReminders: [ReminderItem] {
         service.reminders.filter(\.isOverdue)
@@ -104,6 +107,15 @@ struct ContentView: View {
         return groups
     }
 
+    /// The Markdown that Share and Copy both hand out — reminders as displayed,
+    /// plus the contract telling the model what plan JSON to send back.
+    private var exportText: String {
+        ReminderExport.markdown(
+            groups: exportGroups,
+            listNames: service.calendars.map(\.title).sorted()
+        )
+    }
+
     // MARK: - Date shortcuts
 
     private var tomorrow: Date {
@@ -122,7 +134,10 @@ struct ContentView: View {
         let cal = Calendar.current
         let today = Date().startOfDay
         let weekday = cal.component(.weekday, from: today)
-        let daysToNextMonday = (9 - weekday) % 7
+        // On a Monday the modulo lands on 0, which would "move" the item to
+        // today — always jump the whole week instead.
+        let offset = (9 - weekday) % 7
+        let daysToNextMonday = offset == 0 ? 7 : offset
         return cal.date(byAdding: .day, value: daysToNextMonday, to: today)!
     }
     
@@ -157,7 +172,7 @@ struct ContentView: View {
                             Label("Search", systemImage: "magnifyingglass")
                         }
                         ShareLink(
-                            item: ReminderExport.markdown(groups: exportGroups),
+                            item: exportText,
                             subject: Text("DanRems reminders")
                         ) {
                             Label("Share", systemImage: "square.and.arrow.up")
@@ -167,6 +182,17 @@ struct ContentView: View {
                             Button { copyDisplayedReminders() } label: {
                                 Label("Copy to Clipboard", systemImage: "doc.on.doc")
                             }
+                        }
+                    }
+                }
+                // Its own item rather than a third button inside the group
+                // above: Mac Catalyst renders only the first two of that group,
+                // so a third one silently vanishes from the Mac build while
+                // looking fine on iOS.
+                ToolbarItem(placement: .topBarLeading) {
+                    if !isSelecting {
+                        Button { pastePlan() } label: {
+                            Label("Paste Plan", systemImage: "text.badge.checkmark")
                         }
                     }
                 }
@@ -209,6 +235,17 @@ struct ContentView: View {
             }
             .sheet(isPresented: $showNewReminder) {
                 ReminderEditView(mode: .create)
+            }
+            .sheet(item: $pendingPlan) { plan in
+                PlanPreviewView(plan: plan) { apply(plan) }
+            }
+            .alert("Couldn't Read That Plan", isPresented: Binding(
+                get: { planError != nil },
+                set: { if !$0 { planError = nil } }
+            )) {
+                Button("OK") {}
+            } message: {
+                Text(planError ?? "")
             }
             .sheet(item: $pickDateTargets) { targets in
                 PickDateView(count: targets.ids.count) { date in
@@ -306,12 +343,47 @@ struct ContentView: View {
     }
 
     private func copyDisplayedReminders() {
-        let groups = exportGroups
-        let count = ReminderExport.itemCount(in: groups)
-        UIPasteboard.general.string = ReminderExport.markdown(groups: groups)
+        let count = ReminderExport.itemCount(in: exportGroups)
+        UIPasteboard.general.string = exportText
         showToast(count == 0
             ? "Nothing to copy"
             : "Copied \(count) reminder\(count == 1 ? "" : "s")")
+    }
+
+    /// Reads a plan off the clipboard and opens it for review. Resolution needs
+    /// a fresh fetch — the plan may name a reminder that isn't in any section
+    /// currently on screen.
+    private func pastePlan() {
+        let text = UIPasteboard.general.string
+        Task {
+            do {
+                let parsed = try ReminderPlan.parse(text)
+                let candidates = await service.fetchPlanCandidates()
+                pendingPlan = ResolvedPlan.resolve(
+                    parsed,
+                    candidates: candidates,
+                    calendars: service.calendars
+                )
+            } catch {
+                planError = error.localizedDescription
+            }
+        }
+    }
+
+    /// Anything the plan moved to another day may have crossed into or out of
+    /// the Upcoming window, which is fetched separately and won't update itself.
+    private func apply(_ plan: ResolvedPlan) {
+        do {
+            let applied = try service.apply(plan)
+            showToast(applied == 0
+                ? "Nothing changed"
+                : "Updated \(applied) reminder\(applied == 1 ? "" : "s")")
+            if showUpcoming {
+                Task { upcomingReminders = await service.fetchUpcoming(days: upcomingDays) }
+            }
+        } catch {
+            planError = error.localizedDescription
+        }
     }
 
     /// Moving an item can move it into or out of the Upcoming window, which is
