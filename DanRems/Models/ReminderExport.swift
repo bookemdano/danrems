@@ -48,6 +48,11 @@ enum ReminderExport {
                         lines.append("    - note: \(line.trimmingCharacters(in: .whitespaces))")
                     }
                 }
+                if includeNotes {
+                    for question in item.questions {
+                        lines.append("    - question: \(question)")
+                    }
+                }
             }
             lines.append("")
         }

@@ -23,6 +23,7 @@ struct ReminderDetailView: View {
     @State private var dueDate = Date()
     @State private var includeTime = false
     @State private var notes = ""
+    @State private var questions: [String] = []
     @State private var priority = 0
     @State private var storyPoints: StoryPoints?
     @State private var recurrenceType: RecurrenceType = .none
@@ -60,7 +61,8 @@ struct ReminderDetailView: View {
         return title != item.title
             || calendarChanged
             || dueDateChanged
-            || notes != (item.editableNotes ?? "")
+            || notes != (item.displayNotes ?? "")
+            || questions != item.questions
             || priority != item.priority
             || storyPoints != item.storyPoints
             || recurrenceType != origRecurrence
@@ -231,6 +233,8 @@ struct ReminderDetailView: View {
                     .lineLimit(3...6)
             }
 
+            QuestionsSection(questions: $questions, lastAnswers: item?.lastAnswers ?? [:])
+
             Section {
                 Toggle("In Progress", isOn: Binding(
                     get: { item?.isInProgress ?? false },
@@ -291,7 +295,8 @@ struct ReminderDetailView: View {
         guard let item = service.getReminder(identifier: reminderID) else { return }
 
         title = item.title
-        notes = item.editableNotes ?? ""
+        notes = item.displayNotes ?? ""
+        questions = item.questions
         priority = item.priority
         storyPoints = item.storyPoints
         if let date = item.dueDate {
@@ -319,7 +324,7 @@ struct ReminderDetailView: View {
     private func applyChanges() throws {
         let calendar = service.calendars[selectedCalendarIndex]
         let date = hasDueDate ? dueDate : nil
-        let noteText = notes.isEmpty ? nil : notes
+        let noteText = ReminderNotes.combining(notes: notes, questions: questions)
         let rule = recurrenceType.rule(interval: recurrenceInterval)
 
         try service.updateReminder(
@@ -371,10 +376,14 @@ struct ReminderDetailView: View {
         }
     }
 
-    /// Reads the questions from the notes on screen rather than the saved
-    /// ones, so a `#q` typed just now is asked straight away.
+    /// Reads the questions on screen rather than the saved ones, so one added
+    /// just now is asked straight away.
     private func askQuestions(then complete: @escaping ([String]) -> Void) {
-        pendingCompletion = PendingCompletion.ask(title: title, notes: notes, complete: complete)
+        pendingCompletion = PendingCompletion.ask(
+            title: title,
+            notes: ReminderNotes.combining(notes: notes, questions: questions),
+            complete: complete
+        )
     }
 
     private func finishCompleting(_ item: ReminderItem, answers: [String]) {

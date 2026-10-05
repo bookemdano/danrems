@@ -12,6 +12,7 @@
 		45D74BE78080CAD2B1BDB861 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A08A6D665CABE7140C9802C2 /* Preview Assets.xcassets */; };
 		4AB3489C18922B9C387811C1 /* ReminderRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCD586BC7842D0AD2BAEFE1B /* ReminderRow.swift */; };
 		A1C0E5510000000000000001 /* CompletionQuestionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0E5510000000000000002 /* CompletionQuestionsView.swift */; };
+		A1C0E5510000000000000003 /* QuestionsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C0E5510000000000000004 /* QuestionsSection.swift */; };
 		4B995B973BFA21179E885F39 /* ReminderTally.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6365C996C4BAC77BDF923C06 /* ReminderTally.swift */; };
 		598CD1303C90E9C7ABE51881 /* ReminderDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3344701360C35411F886BD64 /* ReminderDetailView.swift */; };
 		5C60069545C4FC4CDA26F4B3 /* ReminderEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 770E2C8CEAAFBB69DB3588D7 /* ReminderEditView.swift */; };
@@ -51,6 +52,7 @@
 		CF15496CA6E8C4E2C7DB2C8A /* PickDateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PickDateView.swift; sourceTree = "<group>"; };
 		DCD586BC7842D0AD2BAEFE1B /* ReminderRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderRow.swift; sourceTree = "<group>"; };
 		A1C0E5510000000000000002 /* CompletionQuestionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionQuestionsView.swift; sourceTree = "<group>"; };
+		A1C0E5510000000000000004 /* QuestionsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuestionsSection.swift; sourceTree = "<group>"; };
 		E7D10C51DBC0ADBF1C62904B /* StoryPoints.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoryPoints.swift; sourceTree = "<group>"; };
 		ED0F9EEB45F5D0A7E0BFFB5B /* ReminderNotes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderNotes.swift; sourceTree = "<group>"; };
 		FCB025C4A86F26F593592B0E /* ReminderExport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderExport.swift; sourceTree = "<group>"; };
@@ -94,6 +96,7 @@
 				770E2C8CEAAFBB69DB3588D7 /* ReminderEditView.swift */,
 				DCD586BC7842D0AD2BAEFE1B /* ReminderRow.swift */,
 				A1C0E5510000000000000002 /* CompletionQuestionsView.swift */,
+				A1C0E5510000000000000004 /* QuestionsSection.swift */,
 				B4CA817A245799F55B4027B5 /* PlanPreviewView.swift */,
 				A9598B3C4D4E05994B2089E3 /* ReminderSectionHeader.swift */,
 				37E0BB64565029528D786B01 /* SearchView.swift */,
@@ -235,6 +238,7 @@
 				7B9F985DD89FC2254B4CEA92 /* ReminderNotes.swift in Sources */,
 				4AB3489C18922B9C387811C1 /* ReminderRow.swift in Sources */,
 				A1C0E5510000000000000001 /* CompletionQuestionsView.swift in Sources */,
+				A1C0E5510000000000000003 /* QuestionsSection.swift in Sources */,
 				6C7DF92FE8E008BA30C62441 /* ReminderSectionHeader.swift in Sources */,
 				6BECB5B03FCCF0454328F252 /* ReminderService.swift in Sources */,
 				4B995B973BFA21179E885F39 /* ReminderTally.swift in Sources */,

@@ -18,6 +18,8 @@ struct ReminderEditView: View {
     @State private var dueDate = Date()
     @State private var includeTime = false
     @State private var notes = ""
+    @State private var questions: [String] = []
+    @State private var lastAnswers: [String: String] = [:]
     @State private var priority = 0
     @State private var storyPoints: StoryPoints?
     @State private var recurrenceType: RecurrenceType = .none
@@ -87,6 +89,8 @@ struct ReminderEditView: View {
                     TextField("Notes", text: $notes, axis: .vertical)
                         .lineLimit(3...6)
                 }
+
+                QuestionsSection(questions: $questions, lastAnswers: lastAnswers)
             }
             .navigationTitle(navigationTitle)
             .toolbar {
@@ -115,7 +119,9 @@ struct ReminderEditView: View {
               let item = service.getReminder(identifier: id) else { return }
 
         title = item.title
-        notes = item.editableNotes ?? ""
+        notes = item.displayNotes ?? ""
+        questions = item.questions
+        lastAnswers = item.lastAnswers
         priority = item.priority
         storyPoints = item.storyPoints
         if let date = item.dueDate {
@@ -136,7 +142,7 @@ struct ReminderEditView: View {
     private func save() {
         let calendar = service.calendars[selectedCalendarIndex]
         let date = hasDueDate ? dueDate : nil
-        let noteText = notes.isEmpty ? nil : notes
+        let noteText = ReminderNotes.combining(notes: notes, questions: questions)
         let rule = recurrenceType.rule(interval: recurrenceInterval)
 
         do {

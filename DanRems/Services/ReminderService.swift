@@ -363,17 +363,32 @@ final class ReminderService {
         if let entry = ReminderNotes.logEntry(answers: answers, on: Date()) {
             reminder.notes = ReminderNotes.appendingLog(entry, to: reminder.notes)
         }
+        let carriedNotes = reminder.notes
+        let isRecurring = reminder.hasRecurrenceRules
         reminder.isCompleted = true
         try eventStore.save(reminder, commit: true)
 
-        // EventKit advances a completed recurring reminder using its original schedule
-        // anchor, not whatever due date it had when completed — force-correct it so
-        // late completions (e.g. after "Move to Today") recur from the edited date.
-        if let nextDueComponents,
+        if isRecurring,
            let advanced = eventStore.calendarItem(withIdentifier: identifier) as? EKReminder,
            !advanced.isCompleted {
-            advanced.dueDateComponents = nextDueComponents
-            try eventStore.save(advanced, commit: true)
+            var changed = false
+            // EventKit advances a completed recurring reminder using its original schedule
+            // anchor, not whatever due date it had when completed — force-correct it so
+            // late completions (e.g. after "Move to Today") recur from the edited date.
+            if let nextDueComponents {
+                advanced.dueDateComponents = nextDueComponents
+                changed = true
+            }
+            // Make sure the next occurrence carries the answers just logged
+            // (and the cleared `#wip`) rather than trusting the advance to
+            // copy them — the log is what the next prompt's hints come from.
+            if advanced.notes != carriedNotes {
+                advanced.notes = carriedNotes
+                changed = true
+            }
+            if changed {
+                try eventStore.save(advanced, commit: true)
+            }
         }
 
         reminders.removeAll { $0.id == identifier }

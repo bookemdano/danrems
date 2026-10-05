@@ -12,12 +12,13 @@ import Foundation
 ///   - `#q <question>?` — asked on completion, answers logged as `10/1 25mg`
 ///
 /// One type owns them all so that stripping and encoding can't disagree about
-/// what counts as a tag. Editors read `ReminderItem.editableNotes` and labels
-/// `ReminderItem.displayNotes`, so the raw tags never surface as text.
+/// what counts as a tag. Editors and labels read `ReminderItem.displayNotes`,
+/// so the raw tags never surface as text.
 ///
 /// Questions are the exception to the trailing tag line: they're free text, so
-/// they stay wherever Dan typed them, survive `encode`, and show in editors —
-/// there's no other UI to change or remove one.
+/// a `#q` typed anywhere is honoured and survives `encode`. The editors list
+/// them in their own section and write them back with `combining`, one per
+/// line beneath the rest of the notes.
 enum ReminderNotes {
     /// Computed rather than stored: `Regex` isn't `Sendable`, so a static
     /// constant trips Swift 6's global-state check.
@@ -54,8 +55,7 @@ enum ReminderNotes {
             .filter { $0 != "?" }
     }
 
-    /// The user-authored text, with every tag except `#q` removed — what an
-    /// editor shows.
+    /// The user-authored text, with every tag except `#q` removed.
     static func strippingTags(from notes: String?) -> String? {
         guard let notes else { return nil }
         // StoryPoints strips last so its whitespace cleanup runs after ours.
@@ -65,8 +65,8 @@ enum ReminderNotes {
         return StoryPoints.strippingTags(from: cleaned)
     }
 
-    /// `strippingTags`, then the questions too — what a label shows. Lines left
-    /// empty by the removal go with it.
+    /// `strippingTags`, then the questions too — what an editor or label
+    /// shows. Lines left empty by the removal go with it.
     static func strippingTagsAndQuestions(from notes: String?) -> String? {
         guard let notes = strippingTags(from: notes) else { return nil }
         let cleaned = notes
@@ -125,6 +125,31 @@ enum ReminderNotes {
             .map { $0 == skippedAnswer ? "" : $0 }
         if parts.count == count { return parts }
         return count == 1 ? [text] : nil
+    }
+
+    /// Tidies typed text into something `questionPattern` reads back whole: one
+    /// line, no `#q` of its own, and a single `?` at the end — an inner `?`
+    /// would cut the question short. Nil when nothing is left.
+    static func normalizedQuestion(_ text: String) -> String? {
+        let words = text
+            .replacing(/(?i)#q(?=\s|$)/, with: " ")
+            .replacing("?", with: " ")
+            .split(whereSeparator: \.isWhitespace)
+        guard !words.isEmpty else { return nil }
+        return words.joined(separator: " ") + "?"
+    }
+
+    /// Editor text with no questions in it, plus the questions to put back —
+    /// the inverse of `strippingTagsAndQuestions` and `questions(in:)`. Each
+    /// question gets its own line at the end, which is where `appendingLog`
+    /// expects to find them.
+    static func combining(notes: String?, questions: [String]) -> String? {
+        var lines: [String] = []
+        if let body = notes?.trimmingCharacters(in: .whitespacesAndNewlines), !body.isEmpty {
+            lines.append(body)
+        }
+        lines += questions.compactMap(normalizedQuestion).map { "#q \($0)" }
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
     }
 
     private static func isQuestionOnly(_ line: String) -> Bool {

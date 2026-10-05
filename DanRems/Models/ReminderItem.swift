@@ -21,17 +21,27 @@ struct ReminderItem: Identifiable, Hashable, Sendable {
     var isInProgress: Bool
     var isFun: Bool
 
-    /// Notes with the `#sp<n>`, `#wip` and `#fun` tags removed — what every
-    /// editor should show, since those tags are storage rather than something
-    /// Dan typed. `#q` questions stay: the editor is the only place to change
-    /// them.
-    var editableNotes: String? {
-        ReminderNotes.strippingTags(from: notes)
-    }
-
-    /// `editableNotes` without the `#q` questions — what a label shows.
+    /// Notes with every tag and `#q` question removed — what every editor and
+    /// label shows, since the tags are storage rather than something Dan
+    /// typed, and questions are edited in their own section.
     var displayNotes: String? {
         ReminderNotes.strippingTagsAndQuestions(from: notes)
+    }
+
+    /// The `#q` questions asked when this reminder is completed.
+    var questions: [String] {
+        ReminderNotes.questions(in: notes)
+    }
+
+    /// The answer each question got last time, keyed by question, for showing
+    /// next to it. Empty when nothing has been logged yet.
+    var lastAnswers: [String: String] {
+        let questions = questions
+        guard let answers = ReminderNotes.lastAnswers(in: notes, count: questions.count) else { return [:] }
+        return Dictionary(
+            zip(questions, answers).filter { !$0.1.isEmpty },
+            uniquingKeysWith: { first, _ in first }
+        )
     }
 
     var isOverdue: Bool {

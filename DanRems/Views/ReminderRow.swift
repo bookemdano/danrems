@@ -67,6 +67,14 @@ struct ReminderRow: View {
                             .accessibilityLabel("Fun")
                     }
 
+                    let questionCount = item.questions.count
+                    if questionCount > 0 {
+                        Image(systemName: "questionmark.bubble")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .accessibilityLabel("\(questionCount) question\(questionCount == 1 ? "" : "s")")
+                    }
+
                     if item.recurrenceFrequency != nil {
                         Image(systemName: "arrow.triangle.2.circlepath")
                             .font(.caption)
