@@ -324,7 +324,8 @@ final class ReminderService {
     }
 
     /// Completes a reminder and returns the next due date if it's recurring.
-    func completeReminder(identifier: String) throws -> Date? {
+    /// `answers` are the replies to its `#q` questions, logged into the notes.
+    func completeReminder(identifier: String, answers: [String] = []) throws -> Date? {
         guard let reminder = eventStore.calendarItem(withIdentifier: identifier) as? EKReminder else {
             throw ReminderError.notFound
         }
@@ -357,6 +358,11 @@ final class ReminderService {
         // advances a recurring reminder in place, so anything left in the notes
         // here would show up on the next occurrence as already started.
         setInProgress(false, on: reminder)
+        // Logged on this same save for the same reason, which is also what
+        // makes it useful: the log rides along to every later occurrence.
+        if let entry = ReminderNotes.logEntry(answers: answers, on: Date()) {
+            reminder.notes = ReminderNotes.appendingLog(entry, to: reminder.notes)
+        }
         reminder.isCompleted = true
         try eventStore.save(reminder, commit: true)
 
@@ -385,7 +391,7 @@ final class ReminderService {
     /// The copy never inherits recurrence even when the original repeats: a
     /// follow-up is a one-off check, not a new schedule. It's created before
     /// the original is completed so a failure can't lose the work.
-    func createFollowUp(identifier: String, dueDate: Date) throws {
+    func createFollowUp(identifier: String, dueDate: Date, answers: [String] = []) throws {
         guard let reminder = eventStore.calendarItem(withIdentifier: identifier) as? EKReminder else {
             throw ReminderError.notFound
         }
@@ -408,7 +414,7 @@ final class ReminderService {
         )
         try eventStore.save(followUp, commit: true)
 
-        _ = try completeReminder(identifier: identifier)
+        _ = try completeReminder(identifier: identifier, answers: answers)
     }
 
     func deleteReminder(identifier: String) throws {

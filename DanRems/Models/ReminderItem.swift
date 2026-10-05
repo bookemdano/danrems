@@ -22,10 +22,16 @@ struct ReminderItem: Identifiable, Hashable, Sendable {
     var isFun: Bool
 
     /// Notes with the `#sp<n>`, `#wip` and `#fun` tags removed — what every
-    /// editor and label should show, since the tags are storage rather than
-    /// something Dan typed.
-    var displayNotes: String? {
+    /// editor should show, since those tags are storage rather than something
+    /// Dan typed. `#q` questions stay: the editor is the only place to change
+    /// them.
+    var editableNotes: String? {
         ReminderNotes.strippingTags(from: notes)
+    }
+
+    /// `editableNotes` without the `#q` questions — what a label shows.
+    var displayNotes: String? {
+        ReminderNotes.strippingTagsAndQuestions(from: notes)
     }
 
     var isOverdue: Bool {

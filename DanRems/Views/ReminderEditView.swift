@@ -115,7 +115,7 @@ struct ReminderEditView: View {
               let item = service.getReminder(identifier: id) else { return }
 
         title = item.title
-        notes = item.displayNotes ?? ""
+        notes = item.editableNotes ?? ""
         priority = item.priority
         storyPoints = item.storyPoints
         if let date = item.dueDate {

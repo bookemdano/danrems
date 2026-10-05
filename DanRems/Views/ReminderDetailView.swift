@@ -9,6 +9,10 @@ struct ReminderDetailView: View {
     @State private var showDeleteConfirmation = false
     @State private var showFollowUpDate = false
     @State private var showNotTodayAlert = false
+    @State private var pendingCompletion: PendingCompletion?
+    /// Picked in the follow-up sheet, then held until it closes so the
+    /// questions sheet doesn't try to present on top of it.
+    @State private var followUpDate: Date?
     @State private var errorMessage: String?
     @State private var loaded = false
 
@@ -56,7 +60,7 @@ struct ReminderDetailView: View {
         return title != item.title
             || calendarChanged
             || dueDateChanged
-            || notes != (item.displayNotes ?? "")
+            || notes != (item.editableNotes ?? "")
             || priority != item.priority
             || storyPoints != item.storyPoints
             || recurrenceType != origRecurrence
@@ -97,8 +101,7 @@ struct ReminderDetailView: View {
                         titleVisibility: .visible
                     ) {
                         Button("Move to Today & Complete") {
-                            try? service.moveToToday(identifier: item.id)
-                            completeItem(item)
+                            completeItem(item, movingToToday: true)
                         }
                         Button("Complete As Is") {
                             completeItem(item)
@@ -115,7 +118,10 @@ struct ReminderDetailView: View {
                 }
             }
         }
-        .sheet(isPresented: $showFollowUpDate) {
+        .sheet(item: $pendingCompletion) { pending in
+            CompletionQuestionsView(pending: pending)
+        }
+        .sheet(isPresented: $showFollowUpDate, onDismiss: askForFollowUp) {
             PickDateView(
                 count: 1,
                 title: "Follow Up",
@@ -125,7 +131,7 @@ struct ReminderDetailView: View {
                 initialDate: Calendar.current.date(byAdding: .month, value: 1, to: Date().startOfDay)
                     ?? Date().startOfDay
             ) { date in
-                createFollowUp(on: date)
+                followUpDate = date
             }
         }
         .confirmationDialog(
@@ -285,7 +291,7 @@ struct ReminderDetailView: View {
         guard let item = service.getReminder(identifier: reminderID) else { return }
 
         title = item.title
-        notes = item.displayNotes ?? ""
+        notes = item.editableNotes ?? ""
         priority = item.priority
         storyPoints = item.storyPoints
         if let date = item.dueDate {
@@ -336,19 +342,42 @@ struct ReminderDetailView: View {
     /// Marks this item done and files an `F/U` copy for `date`. Any unsaved
     /// edits go in first, so the follow-up copies what's on screen rather than
     /// what was last written.
-    private func createFollowUp(on date: Date) {
+    private func askForFollowUp() {
+        guard let date = followUpDate else { return }
+        followUpDate = nil
+        askQuestions { answers in createFollowUp(on: date, answers: answers) }
+    }
+
+    private func createFollowUp(on date: Date, answers: [String]) {
         do {
             if hasChanges && !title.trimmingCharacters(in: .whitespaces).isEmpty {
                 try applyChanges()
             }
-            try service.createFollowUp(identifier: reminderID, dueDate: date)
+            try service.createFollowUp(identifier: reminderID, dueDate: date, answers: answers)
             dismiss()
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
-    private func completeItem(_ item: ReminderItem) {
+    private func completeItem(_ item: ReminderItem, movingToToday: Bool = false) {
+        guard !item.isCompleted else {
+            finishCompleting(item, answers: [])
+            return
+        }
+        askQuestions { answers in
+            if movingToToday { try? service.moveToToday(identifier: item.id) }
+            finishCompleting(item, answers: answers)
+        }
+    }
+
+    /// Reads the questions from the notes on screen rather than the saved
+    /// ones, so a `#q` typed just now is asked straight away.
+    private func askQuestions(then complete: @escaping ([String]) -> Void) {
+        pendingCompletion = PendingCompletion.ask(title: title, notes: notes, complete: complete)
+    }
+
+    private func finishCompleting(_ item: ReminderItem, answers: [String]) {
         do {
             if hasChanges && !title.trimmingCharacters(in: .whitespaces).isEmpty {
                 try applyChanges()
@@ -356,7 +385,7 @@ struct ReminderDetailView: View {
             if item.isCompleted {
                 try service.toggleComplete(identifier: item.id)
             } else {
-                _ = try service.completeReminder(identifier: item.id)
+                _ = try service.completeReminder(identifier: item.id, answers: answers)
             }
             dismiss()
         } catch {

@@ -9,6 +9,7 @@ struct ReminderRow: View {
     var onUncomplete: (() -> Void)?
 
     @State private var showNotTodayAlert = false
+    @State private var pendingCompletion: PendingCompletion?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -18,8 +19,7 @@ struct ReminderRow: View {
                         if !item.isDueToday {
                             showNotTodayAlert = true
                         } else {
-                            let nextDate = try? service.completeReminder(identifier: item.id)
-                            onComplete?(item.id, item.title, nextDate)
+                            complete()
                         }
                     } else {
                         try? service.toggleComplete(identifier: item.id)
@@ -33,15 +33,15 @@ struct ReminderRow: View {
                 .buttonStyle(.plain)
                 .confirmationDialog("This item isn't due today.", isPresented: $showNotTodayAlert, titleVisibility: .visible) {
                     Button("Move to Today & Complete") {
-                        try? service.moveToToday(identifier: item.id)
-                        let nextDate = try? service.completeReminder(identifier: item.id)
-                        onComplete?(item.id, item.title, nextDate)
+                        complete(movingToToday: true)
                     }
                     Button("Complete As Is") {
-                        let nextDate = try? service.completeReminder(identifier: item.id)
-                        onComplete?(item.id, item.title, nextDate)
+                        complete()
                     }
                     Button("Cancel", role: .cancel) {}
+                }
+                .sheet(item: $pendingCompletion) { pending in
+                    CompletionQuestionsView(pending: pending)
                 }
             }
 
@@ -93,6 +93,17 @@ struct ReminderRow: View {
                     }
                 }
             }
+        }
+    }
+
+    /// Completes the reminder once its `#q` questions are answered — or right
+    /// away when it has none. The move waits for the answers too, so
+    /// cancelling the questions leaves the reminder untouched.
+    private func complete(movingToToday: Bool = false) {
+        pendingCompletion = PendingCompletion.ask(title: item.title, notes: item.notes) { answers in
+            if movingToToday { try? service.moveToToday(identifier: item.id) }
+            let nextDate = try? service.completeReminder(identifier: item.id, answers: answers)
+            onComplete?(item.id, item.title, nextDate)
         }
     }
 
