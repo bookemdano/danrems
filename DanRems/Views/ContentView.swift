@@ -122,12 +122,48 @@ struct ContentView: View {
         Calendar.current.date(byAdding: .day, value: 1, to: Date().startOfDay)!
     }
 
-    private var thisWeekend: Date {
+    /// Saturday of the coming weekend (a week out when today is Saturday).
+    private var nextSaturday: Date {
         let cal = Calendar.current
         let today = Date().startOfDay
         let weekday = cal.component(.weekday, from: today)
         let daysToSat = ((7 - weekday) % 7 == 0) ? 7 : (7 - weekday)
         return cal.date(byAdding: .day, value: daysToSat, to: today)!
+    }
+
+    private var nextSunday: Date {
+        Calendar.current.date(byAdding: .day, value: 1, to: nextSaturday)!
+    }
+
+    /// Saturday or Sunday of the coming weekend, per the current roll.
+    private var nextWeekend: Date {
+        menuRolls.weekendIsSunday ? nextSunday : nextSaturday
+    }
+
+    /// A weekday (Mon–Fri) in the next seven days, per the current roll. Any
+    /// seven consecutive days hold exactly five, so the index always lands.
+    private var randomNextWeek: Date {
+        let cal = Calendar.current
+        let today = Date().startOfDay
+        let weekdays = (1...7).compactMap { offset -> Date? in
+            let day = cal.date(byAdding: .day, value: offset, to: today)!
+            return cal.isDateInWeekend(day) ? nil : day
+        }
+        return weekdays[menuRolls.weekdayIndex % weekdays.count]
+    }
+
+    /// SwiftUI evaluates a `.contextMenu` closure when the row renders, not
+    /// when the menu opens, so `Bool.random()` inside it would stick until
+    /// something else redrew the row. Keeping the roll in state and bumping it
+    /// as the pointer enters a row gives each right-click a fresh menu.
+    private struct MenuRolls: Equatable {
+        var weekendIsSunday = Bool.random()
+        var weekdayIndex = Int.random(in: 0..<5)
+    }
+    @State private var menuRolls = MenuRolls()
+
+    private func rerollMenuDates() {
+        menuRolls = MenuRolls()
     }
     
     private var nextWeek: Date {
@@ -141,12 +177,18 @@ struct ContentView: View {
         return cal.date(byAdding: .day, value: daysToNextMonday, to: today)!
     }
     
+    /// The 1st of next month, or the month after when that 1st is less than
+    /// a week away — late in a month "Next Month" should still be a real jump
+    /// rather than landing beside "Next Week".
     private var nextMonth: Date {
         let cal = Calendar.current
-        var comps = cal.dateComponents([.year, .month], from: Date())
+        let today = Date().startOfDay
+        var comps = cal.dateComponents([.year, .month], from: today)
         comps.month = (comps.month ?? 1) + 1
         comps.day = 1
-        return cal.date(from: comps)!
+        let first = cal.date(from: comps)!
+        let days = cal.dateComponents([.day], from: today, to: first).day ?? 0
+        return days < 7 ? cal.date(byAdding: .month, value: 1, to: first)! : first
     }
 
     var body: some View {
@@ -215,7 +257,7 @@ struct ContentView: View {
                         Button("Tomorrow") { rescheduleSelected(to: tomorrow) }
                             .disabled(selectedIDs.isEmpty)
                         Spacer()
-                        Button("Weekend") { rescheduleSelected(to: thisWeekend) }
+                        Button("Weekend") { rescheduleSelected(to: nextWeekend) }
                             .disabled(selectedIDs.isEmpty)
                         Spacer()
                         Button("Next Month") { rescheduleSelected(to: nextMonth) }
@@ -257,6 +299,9 @@ struct ContentView: View {
                 }
             }
             .task {
+                // Before the first load, so that load's reload is what writes
+                // the spreadsheet on launch.
+                SheetSync.shared.attach(to: service)
                 await service.requestAccess()
                 syncTodayOrder()
                 didInitialLoad = true
@@ -267,6 +312,10 @@ struct ContentView: View {
                 // Reminders may have moved on, and if the day rolled over while
                 // we were away, "today" and "overdue" mean something different
                 // now.
+                if phase == .background {
+                    flushSheetSync()
+                    return
+                }
                 guard phase == .active, didInitialLoad else { return }
                 Task { await refreshAll() }
             }
@@ -284,6 +333,17 @@ struct ContentView: View {
         }
         if showUpcoming {
             upcomingReminders = await service.fetchUpcoming(days: upcomingDays)
+        }
+    }
+
+    /// Writes any spreadsheet sync still waiting out its delay, under a
+    /// background task so iOS gives it time to finish before suspending us.
+    private func flushSheetSync() {
+        let app = UIApplication.shared
+        let taskID = app.beginBackgroundTask(withName: "SheetSync", expirationHandler: nil)
+        Task {
+            await SheetSync.shared.flush()
+            app.endBackgroundTask(taskID)
         }
     }
 
@@ -389,9 +449,28 @@ struct ContentView: View {
     /// Moving an item can move it into or out of the Upcoming window, which is
     /// fetched separately from `service.reminders` and so won't update itself.
     private func move(_ ids: [String], to date: Date) {
-        try? service.reschedule(identifiers: ids, to: date)
+        do {
+            try service.reschedule(identifiers: ids, to: date)
+        } catch {
+            showToast("Couldn't move: \(error.localizedDescription)")
+            return
+        }
+        showMovedToast(ids, to: date)
         guard showUpcoming else { return }
         Task { upcomingReminders = await service.fetchUpcoming(days: upcomingDays) }
+    }
+
+    /// Same shape as the completion toast: one item names the reminder and
+    /// opens it on tap; several just report the count.
+    private func showMovedToast(_ ids: [String], to date: Date) {
+        let when = date.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
+        if ids.count == 1, let id = ids.first {
+            let title = (service.reminders + upcomingReminders + completedReminders)
+                .first { $0.id == id }?.title ?? "Reminder"
+            showToast("\(title) — moved to \(when)", reminderID: id)
+        } else {
+            showToast("\(ids.count) reminders moved to \(when)")
+        }
     }
 
     private func rescheduleSelected(to date: Date) {
@@ -414,6 +493,7 @@ struct ContentView: View {
                 ReminderRow(item: item, onComplete: handleComplete)
             }
             .contextMenu { dateContextMenu(for: item) }
+            .onHover { if $0 { rerollMenuDates() } }
         }
     }
 
@@ -442,6 +522,7 @@ struct ContentView: View {
                 }
             }
             .contextMenu { dateContextMenu(for: item) }
+            .onHover { if $0 { rerollMenuDates() } }
         }
     }
 
@@ -480,14 +561,45 @@ struct ContentView: View {
         }
     }
 
+    /// The move shortcuts in the order they land on the calendar, which
+    /// changes with the day of the week (on a Saturday "Next Week" is Monday
+    /// but "Next Weekend" is a week away).
+    private var dateShortcuts: [(label: String, date: Date)] {
+        let weekend = nextWeekend
+        return [
+            (moveLabel("Today", Date().startOfDay), Date().startOfDay),
+            (moveLabel("Tomorrow", tomorrow), tomorrow),
+            (moveLabel("Next Weekend", weekend), weekend),
+            (moveLabel("Next Monday", nextWeek), nextWeek),
+            (moveLabel("Next Month", nextMonth), nextMonth),
+        ].sorted { $0.date < $1.date }
+    }
+
     @ViewBuilder
     private func dateContextMenu(for item: ReminderItem) -> some View {
-        Button("Move to Today") { move([item.id], to: Date().startOfDay) }
-        Button("Move to Tomorrow") { move([item.id], to: tomorrow) }
-        Button("Move to This Weekend") { move([item.id], to: thisWeekend) }
-        Button("Move to Next Week") { move([item.id], to: nextWeek) }
-        Button("Move to Next Month") { move([item.id], to: nextMonth) }
+        ForEach(dateShortcuts, id: \.label) { shortcut in
+            Button(shortcut.label) { move([item.id], to: shortcut.date) }
+        }
+        // Kept out of the sorted group so it always sits just above Pick Date.
+        let random = randomNextWeek
+        Button(moveLabel("Random Next Week", random)) { move([item.id], to: random) }
         Button("Pick Date...") { pickDateTargets = PickDateTargets(ids: [item.id]) }
+    }
+
+    /// "Next Week (Mon 10/27)" — the shortcut plus the day it lands on.
+    private func moveLabel(_ name: String, _ date: Date) -> String {
+        "\(name) (\(monthDay(date)))"
+    }
+
+    private static let menuDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "EEE M/d"
+        return f
+    }()
+
+    /// "Fri 10/24"
+    private func monthDay(_ date: Date) -> String {
+        Self.menuDateFormatter.string(from: date)
     }
 
     // MARK: - List
@@ -498,7 +610,9 @@ struct ContentView: View {
                 if !isSelecting {
                     Section {
                         Button("Move All to Today") {
+                            let count = overdueReminders.count
                             try? service.moveOverdueToToday()
+                            showToast(count == 1 ? "1 reminder moved to today" : "\(count) reminders moved to today")
                         }
                     }
                 }
@@ -557,6 +671,7 @@ struct ContentView: View {
                                     ReminderRow(item: item, onComplete: handleComplete)
                                 }
                                 .contextMenu { dateContextMenu(for: item) }
+            .onHover { if $0 { rerollMenuDates() } }
                             }
                         } header: {
                             ReminderSectionHeader(title: "\(dayLabel) - \(listName)", items: items)
@@ -589,6 +704,14 @@ struct ContentView: View {
                     } header: {
                         ReminderSectionHeader(title: "Completed - \(listName)", items: items)
                     }
+                }
+            }
+
+            Section {
+                NavigationLink {
+                    SheetSyncView()
+                } label: {
+                    Label("Spreadsheet Sync", systemImage: "tablecells")
                 }
             }
         }

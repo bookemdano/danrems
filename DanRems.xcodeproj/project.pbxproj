@@ -31,6 +31,10 @@
 		A699A433F53EA0635E62782B /* ReminderItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD0462F6EC6C8B7C92A9BA45 /* ReminderItem.swift */; };
 		CFCEDACAE3D8D2E45635DF0E /* DanRemsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3B45DFC6E8BC6C32916F7EE /* DanRemsApp.swift */; };
 		EA15BD443D1BA76EC2DBD91B /* PickDateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF15496CA6E8C4E2C7DB2C8A /* PickDateView.swift */; };
+		7DD62B3E8E64BADFD5ABDB73 /* ReminderCSV.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83B2155BC4A7E0CB82E8084D /* ReminderCSV.swift */; };
+		32C067B9722DC9FEE9517FE0 /* SheetSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C017B6314030C581BFF9F5A /* SheetSync.swift */; };
+		6D06CADB5FA1C82ECB085996 /* SyncSpreadsheetIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4F33E6D21792778A256088A /* SyncSpreadsheetIntent.swift */; };
+		63C07CFAEF8AE97EB0D067AF /* SheetSyncView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C92B67E93AA73B531126D93D /* SheetSyncView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -60,6 +64,10 @@
 		3F57FE7FE6144E66A5929895 /* ResolvedPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResolvedPlan.swift; sourceTree = "<group>"; };
 		4CD69195DD42916D5F49CEF3 /* ReminderRef.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderRef.swift; sourceTree = "<group>"; };
 		16DB714089C0F618C2600F8A /* ReminderPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderPlan.swift; sourceTree = "<group>"; };
+		83B2155BC4A7E0CB82E8084D /* ReminderCSV.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderCSV.swift; sourceTree = "<group>"; };
+		7C017B6314030C581BFF9F5A /* SheetSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SheetSync.swift; sourceTree = "<group>"; };
+		C4F33E6D21792778A256088A /* SyncSpreadsheetIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncSpreadsheetIntent.swift; sourceTree = "<group>"; };
+		C92B67E93AA73B531126D93D /* SheetSyncView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SheetSyncView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -90,6 +98,7 @@
 		AA1A54C4BB4B3459A2447528 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				C92B67E93AA73B531126D93D /* SheetSyncView.swift */,
 				BE91092176A44C8B8A04C00A /* ContentView.swift */,
 				CF15496CA6E8C4E2C7DB2C8A /* PickDateView.swift */,
 				3344701360C35411F886BD64 /* ReminderDetailView.swift */,
@@ -123,6 +132,8 @@
 		E3BE67F98BD714BE48EE0897 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				C4F33E6D21792778A256088A /* SyncSpreadsheetIntent.swift */,
+				7C017B6314030C581BFF9F5A /* SheetSync.swift */,
 				9E6E5D9765FCAAA80B7E5E53 /* ReminderService.swift */,
 			);
 			path = Services;
@@ -139,6 +150,7 @@
 		FE9A2B4AF857278425365981 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				83B2155BC4A7E0CB82E8084D /* ReminderCSV.swift */,
 				FCB025C4A86F26F593592B0E /* ReminderExport.swift */,
 				3F57FE7FE6144E66A5929895 /* ResolvedPlan.swift */,
 				4CD69195DD42916D5F49CEF3 /* ReminderRef.swift */,
@@ -223,6 +235,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				63C07CFAEF8AE97EB0D067AF /* SheetSyncView.swift in Sources */,
+				6D06CADB5FA1C82ECB085996 /* SyncSpreadsheetIntent.swift in Sources */,
+				32C067B9722DC9FEE9517FE0 /* SheetSync.swift in Sources */,
+				7DD62B3E8E64BADFD5ABDB73 /* ReminderCSV.swift in Sources */,
 				41AEC1C1E8472DBA9FDBBEAD /* ContentView.swift in Sources */,
 				CFCEDACAE3D8D2E45635DF0E /* DanRemsApp.swift in Sources */,
 				7E39BF87C4186E5F8C9B762F /* DateHelpers.swift in Sources */,

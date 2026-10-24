@@ -9,8 +9,18 @@ final class ReminderService {
 
     var reminders: [ReminderItem] = []
     var calendars: [EKCalendar] = []
+    /// Most recent completion of each repeating reminder in `reminders`,
+    /// keyed by `lastCompletionKey`. EventKit advances a recurring reminder
+    /// in place and leaves a completed copy behind, so the copies are what
+    /// say when it was last done. Refreshed after every `fetchReminders`.
+    private(set) var lastCompletions: [String: Date] = [:]
     var authorizationStatus: EKAuthorizationStatus = .notDetermined
     var errorMessage: String?
+    /// Called after every reload of the main list — which every edit made
+    /// here, and every return to the foreground, ends in. `SheetSync` hangs
+    /// off this so the spreadsheet follows along without each mutation having
+    /// to remember to ask.
+    @ObservationIgnored var onRemindersFetched: (() -> Void)?
     /// Flips the `#wip` tag on the reminder itself, so the flag syncs across
     /// devices and can be cleared as part of completing the item.
     func toggleInProgress(identifier: String) throws {
@@ -183,6 +193,54 @@ final class ReminderService {
             calendars: nil
         )
         reminders = await fetchReminderItems(matching: predicate)
+        onRemindersFetched?()
+        await refreshLastCompletions()
+    }
+
+    private func lastCompletionKey(listIdentifier: String, title: String) -> String {
+        "\(listIdentifier)|\(title)"
+    }
+
+    /// When `item` was last completed, for repeating reminders only.
+    func lastCompletion(of item: ReminderItem) -> Date? {
+        guard item.recurrenceFrequency != nil else { return nil }
+        return lastCompletions[lastCompletionKey(listIdentifier: item.listIdentifier, title: item.title)]
+    }
+
+    /// One fetch of the past year's completions covers every repeating
+    /// reminder on screen; anything older than that isn't worth a caption.
+    private func refreshLastCompletions() async {
+        let repeating = reminders.filter { $0.recurrenceFrequency != nil }
+        guard !repeating.isEmpty else {
+            lastCompletions = [:]
+            return
+        }
+        let wanted = Set(repeating.map { lastCompletionKey(listIdentifier: $0.listIdentifier, title: $0.title) })
+        let yearAgo = Calendar.current.date(byAdding: .year, value: -1, to: Date())
+        let completed = await fetchReminderItems(matching: eventStore.predicateForCompletedReminders(
+            withCompletionDateStarting: yearAgo, ending: nil, calendars: nil
+        ))
+        var latest: [String: Date] = [:]
+        for item in completed {
+            guard let done = item.completionDate else { continue }
+            let key = lastCompletionKey(listIdentifier: item.listIdentifier, title: item.title)
+            guard wanted.contains(key) else { continue }
+            if let have = latest[key], have >= done { continue }
+            latest[key] = done
+        }
+        lastCompletions = latest
+    }
+
+    /// Every reminder with a due date, open or completed, across all lists —
+    /// what the synced spreadsheet holds.
+    func fetchDatedReminders() async -> [ReminderItem] {
+        let open = await fetchReminderItems(matching: eventStore.predicateForIncompleteReminders(
+            withDueDateStarting: nil, ending: nil, calendars: nil
+        ))
+        let completed = await fetchReminderItems(matching: eventStore.predicateForCompletedReminders(
+            withCompletionDateStarting: nil, ending: nil, calendars: nil
+        ))
+        return (open + completed).filter { $0.dueDate != nil }
     }
 
     func fetchCompletedToday() async -> [ReminderItem] {

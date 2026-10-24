@@ -44,6 +44,21 @@ struct ReminderItem: Identifiable, Hashable, Sendable {
         )
     }
 
+    /// "weekly", "every 3d" — the recurrence in as few characters as read
+    /// well in a row caption. Nil when the reminder doesn't repeat.
+    var repeatSummary: String? {
+        guard let recurrenceFrequency else { return nil }
+        let interval = recurrenceInterval ?? 1
+        let (every, unit): (String, String) = switch recurrenceFrequency {
+        case .daily: ("daily", "d")
+        case .weekly: ("weekly", "w")
+        case .monthly: ("monthly", "mo")
+        case .yearly: ("yearly", "y")
+        @unknown default: ("repeats", "")
+        }
+        return interval == 1 || unit.isEmpty ? every : "every \(interval)\(unit)"
+    }
+
     var isOverdue: Bool {
         guard !isCompleted, let dueDate else { return false }
         return dueDate < Date().startOfDay

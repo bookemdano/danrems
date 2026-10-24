@@ -75,11 +75,15 @@ struct ReminderRow: View {
                             .accessibilityLabel("\(questionCount) question\(questionCount == 1 ? "" : "s")")
                     }
 
-                    if item.recurrenceFrequency != nil {
+                    if let repeatSummary = item.repeatSummary {
                         Image(systemName: "arrow.triangle.2.circlepath")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .accessibilityLabel("Repeating")
+                        Text(repeatCaption(repeatSummary))
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
                     }
                 }
 
@@ -113,6 +117,13 @@ struct ReminderRow: View {
             let nextDate = try? service.completeReminder(identifier: item.id, answers: answers)
             onComplete?(item.id, item.title, nextDate)
         }
+    }
+
+    /// "weekly · last 10/17", or just the rate when it has never been done.
+    private func repeatCaption(_ summary: String) -> String {
+        guard let last = service.lastCompletion(of: item) else { return summary }
+        let md = last.formatted(.dateTime.month(.defaultDigits).day(.defaultDigits))
+        return "\(summary) · last \(md)"
     }
 
     private var priorityText: String {
