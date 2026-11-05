@@ -20,6 +20,10 @@ struct ReminderItem: Identifiable, Hashable, Sendable {
     var storyPoints: StoryPoints?
     var isInProgress: Bool
     var isFun: Bool
+    /// Whether the due date carries a time of day, rather than just a day.
+    var hasDueTime: Bool
+    /// Whether the reminder has its own alert set in Apple Reminders.
+    var hasAlarms: Bool
 
     /// Notes with every tag and `#q` question removed — what every editor and
     /// label shows, since the tags are storage rather than something Dan
@@ -57,6 +61,11 @@ struct ReminderItem: Identifiable, Hashable, Sendable {
         @unknown default: ("repeats", "")
         }
         return interval == 1 || unit.isEmpty ? every : "every \(interval)\(unit)"
+    }
+
+    /// EventKit's 1–4 band, which Apple Reminders shows as High (!!!).
+    var isHighPriority: Bool {
+        (1...4).contains(priority)
     }
 
     var isOverdue: Bool {
@@ -129,7 +138,9 @@ struct ReminderItem: Identifiable, Hashable, Sendable {
             recurrenceInterval: rule?.interval,
             storyPoints: StoryPoints.parse(from: reminder.notes),
             isInProgress: ReminderNotes.isInProgress(reminder.notes),
-            isFun: ReminderNotes.isFun(reminder.notes)
+            isFun: ReminderNotes.isFun(reminder.notes),
+            hasDueTime: reminder.dueDateComponents?.hour != nil,
+            hasAlarms: reminder.hasAlarms
         )
     }
 

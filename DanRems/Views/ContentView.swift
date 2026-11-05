@@ -307,6 +307,12 @@ struct ContentView: View {
                 didInitialLoad = true
             }
             .refreshable { await refreshAll() }
+            .onChange(of: NotificationRouter.shared.openReminderID, initial: true) { _, id in
+                // A tapped notification: show that reminder on top of the list.
+                guard let id else { return }
+                NotificationRouter.shared.openReminderID = nil
+                navPath = NavigationPath([ReminderDestination(id: id)])
+            }
             .onChange(of: scenePhase) { _, phase in
                 // What's on screen was fetched before we were suspended: Apple
                 // Reminders may have moved on, and if the day rolled over while

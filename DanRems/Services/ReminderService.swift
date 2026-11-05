@@ -147,7 +147,8 @@ final class ReminderService {
         } catch {
             errorMessage = error.localizedDescription
         }
-        // Request notification permission for delete alerts
+        // Request notification permission for delete alerts and the
+        // High-priority alerts in `ReminderNotifications`
         _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
     }
 
@@ -195,6 +196,19 @@ final class ReminderService {
         reminders = await fetchReminderItems(matching: predicate)
         onRemindersFetched?()
         await refreshLastCompletions()
+        await refreshNotifications()
+    }
+
+    /// Rebuilds the High-priority alerts and nudges. Needs its own fetch: the
+    /// main list stops at today, while nudges and alerts are booked a week out.
+    private func refreshNotifications() async {
+        let end = Calendar.current.date(
+            byAdding: .day, value: ReminderNotifications.lookaheadDays, to: Date().endOfDay
+        )
+        let open = await fetchReminderItems(matching: eventStore.predicateForIncompleteReminders(
+            withDueDateStarting: nil, ending: end, calendars: nil
+        ))
+        await ReminderNotifications.reschedule(open: open)
     }
 
     private func lastCompletionKey(listIdentifier: String, title: String) -> String {
