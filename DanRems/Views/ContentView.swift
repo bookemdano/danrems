@@ -27,6 +27,9 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var showCompleted = false
     @State private var showUpcoming = false
+    /// Off by default and remembered, so the long-term house upkeep stays out
+    /// of sight until Dan goes looking for it.
+    @AppStorage("showLongTerm") private var showLongTerm = false
     @State private var upcomingDays = 3
     @State private var showSearch = false
     @State private var showNewReminder = false
@@ -45,12 +48,22 @@ struct ContentView: View {
     @State private var pendingPlan: ResolvedPlan?
     @State private var planError: String?
 
+    /// The loaded reminders minus the long-term ones while those are hidden.
+    /// Everything on screen reads from this rather than `service.reminders`.
+    private var visibleReminders: [ReminderItem] {
+        showLongTerm ? service.reminders : service.reminders.filter { !$0.isLongTerm }
+    }
+
+    private var hiddenLongTermCount: Int {
+        showLongTerm ? 0 : service.reminders.filter { $0.isLongTerm && ($0.isOverdue || $0.isDueToday) }.count
+    }
+
     private var overdueReminders: [ReminderItem] {
-        service.reminders.filter(\.isOverdue)
+        visibleReminders.filter(\.isOverdue)
     }
 
     private var orderedTodayReminders: [ReminderItem] {
-        let today = service.reminders.filter { $0.isDueToday && !$0.isOverdue }
+        let today = visibleReminders.filter { $0.isDueToday && !$0.isOverdue }
         let idSet = Set(today.map(\.id))
         let validOrder = todayOrder.filter { idSet.contains($0) }
         let newItems = today.filter { !validOrder.contains($0.id) }.map(\.id)
@@ -69,7 +82,8 @@ struct ContentView: View {
     }
 
     private var groupedUpcoming: [(String, [(String, [ReminderItem])])] {
-        let byDay = Dictionary(grouping: upcomingReminders) { item -> String in
+        let shown = showLongTerm ? upcomingReminders : upcomingReminders.filter { !$0.isLongTerm }
+        let byDay = Dictionary(grouping: shown) { item -> String in
             guard let date = item.dueDate else { return "No Date" }
             return date.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())
         }
@@ -135,36 +149,37 @@ struct ContentView: View {
         Calendar.current.date(byAdding: .day, value: 1, to: nextSaturday)!
     }
 
-    /// Saturday or Sunday of the coming weekend, per the current roll.
+    /// Saturday or Sunday of the coming weekend, alternating each time a
+    /// move menu opens (see nextWeekDayCount for why it isn't random).
+    @AppStorage("weekendIsSunday") private var weekendIsSunday = false
+
     private var nextWeekend: Date {
-        menuRolls.weekendIsSunday ? nextSunday : nextSaturday
+        weekendIsSunday ? nextSunday : nextSaturday
     }
 
-    /// A weekday (Mon–Fri) in the next seven days, per the current roll. Any
-    /// seven consecutive days hold exactly five, so the index always lands.
-    private var randomNextWeek: Date {
-        let cal = Calendar.current
-        let today = Date().startOfDay
-        let weekdays = (1...7).compactMap { offset -> Date? in
-            let day = cal.date(byAdding: .day, value: offset, to: today)!
-            return cal.isDateInWeekend(day) ? nil : day
-        }
-        return weekdays[menuRolls.weekdayIndex % weekdays.count]
+    /// A day of next week that walks Mon, Tue … Fri and back to Mon, one step
+    /// each time a move menu opens, so deferred items spread across the week.
+    /// This replaced a random pick: on iPhone the roll only happened at launch
+    /// (rerolls hung off pointer hover, and SwiftUI builds a context menu when
+    /// the row renders, not when it opens), so it showed the same day for days.
+    /// The count lives in AppStorage so the walk carries on across launches.
+    @AppStorage("nextWeekDayCount") private var nextWeekDayCount = 0
+    @State private var lastNextWeekBump = Date.distantPast
+
+    private var rotatingNextWeek: Date {
+        Calendar.current.date(byAdding: .day, value: nextWeekDayCount % 5, to: nextWeek)!
     }
 
-    /// SwiftUI evaluates a `.contextMenu` closure when the row renders, not
-    /// when the menu opens, so `Bool.random()` inside it would stick until
-    /// something else redrew the row. Keeping the roll in state and bumping it
-    /// as the pointer enters a row gives each right-click a fresh menu.
-    private struct MenuRolls: Equatable {
-        var weekendIsSunday = Bool.random()
-        var weekdayIndex = Int.random(in: 0..<5)
+    /// Called from the menu's onAppear. The debounce guards against SwiftUI
+    /// rebuilding the open menu after the count changes and firing onAppear
+    /// again, which would skip days.
+    private func advanceMenuDates() {
+        guard Date().timeIntervalSince(lastNextWeekBump) > 1 else { return }
+        lastNextWeekBump = Date()
+        nextWeekDayCount = (nextWeekDayCount + 1) % 5
+        weekendIsSunday.toggle()
     }
-    @State private var menuRolls = MenuRolls()
 
-    private func rerollMenuDates() {
-        menuRolls = MenuRolls()
-    }
     
     private var nextWeek: Date {
         let cal = Calendar.current
@@ -354,6 +369,8 @@ struct ContentView: View {
     }
 
     private func syncTodayOrder() {
+        // All of today, hidden or not, so a long-term item keeps its place
+        // in the order while Show Long Term is off.
         let today = service.reminders.filter { $0.isDueToday && !$0.isOverdue }
         let idSet = Set(today.map(\.id))
         let validOrder = todayOrder.filter { idSet.contains($0) }
@@ -499,7 +516,6 @@ struct ContentView: View {
                 ReminderRow(item: item, onComplete: handleComplete)
             }
             .contextMenu { dateContextMenu(for: item) }
-            .onHover { if $0 { rerollMenuDates() } }
         }
     }
 
@@ -528,7 +544,6 @@ struct ContentView: View {
                 }
             }
             .contextMenu { dateContextMenu(for: item) }
-            .onHover { if $0 { rerollMenuDates() } }
         }
     }
 
@@ -568,17 +583,23 @@ struct ContentView: View {
     }
 
     /// The move shortcuts in the order they land on the calendar, which
-    /// changes with the day of the week (on a Saturday "Next Week" is Monday
-    /// but "Next Weekend" is a week away).
+    /// changes with the day of the week (on a Saturday "Monday" is two days off
+    /// but "Weekend" is a week away).
     private var dateShortcuts: [(label: String, date: Date)] {
         let weekend = nextWeekend
         return [
             (moveLabel("Today", Date().startOfDay), Date().startOfDay),
             (moveLabel("Tomorrow", tomorrow), tomorrow),
-            (moveLabel("Next Weekend", weekend), weekend),
-            (moveLabel("Next Monday", nextWeek), nextWeek),
+            (moveLabel("Weekend", weekend), weekend),
+            (moveLabel("Monday", nextWeek), nextWeek),
+            (moveLabel("Week", rotatingNextWeek), rotatingNextWeek),
             (moveLabel("Next Month", nextMonth), nextMonth),
-        ].sorted { $0.date < $1.date }
+        ]
+        // Swift's sort isn't stable; break date ties (Week on its Monday
+        // step) by list position so Monday always comes before Week.
+        .enumerated()
+        .sorted { ($0.element.date, $0.offset) < ($1.element.date, $1.offset) }
+        .map(\.element)
     }
 
     @ViewBuilder
@@ -586,13 +607,13 @@ struct ContentView: View {
         ForEach(dateShortcuts, id: \.label) { shortcut in
             Button(shortcut.label) { move([item.id], to: shortcut.date) }
         }
-        // Kept out of the sorted group so it always sits just above Pick Date.
-        let random = randomNextWeek
-        Button(moveLabel("Random Next Week", random)) { move([item.id], to: random) }
+        // onAppear sits on Pick Date because it is the one item every menu
+        // has exactly once, so the rotating dates step once per opening.
         Button("Pick Date...") { pickDateTargets = PickDateTargets(ids: [item.id]) }
+            .onAppear { advanceMenuDates() }
     }
 
-    /// "Next Week (Mon 10/27)" — the shortcut plus the day it lands on.
+    /// "Week (Wed 10/29)" — the shortcut plus the day it lands on.
     private func moveLabel(_ name: String, _ date: Date) -> String {
         "\(name) (\(monthDay(date)))"
     }
@@ -617,7 +638,7 @@ struct ContentView: View {
                     Section {
                         Button("Move All to Today") {
                             let count = overdueReminders.count
-                            try? service.moveOverdueToToday()
+                            try? service.moveOverdueToToday(only: Set(overdueReminders.map(\.id)))
                             showToast(count == 1 ? "1 reminder moved to today" : "\(count) reminders moved to today")
                         }
                     }
@@ -652,6 +673,12 @@ struct ContentView: View {
             }
 
             Section {
+                Toggle(isOn: $showLongTerm) {
+                    Text("Show Long Term")
+                    if hiddenLongTermCount > 0 {
+                        Text("\(hiddenLongTermCount) hidden today")
+                    }
+                }
                 Toggle("Show Upcoming", isOn: $showUpcoming)
                     .onChange(of: showUpcoming) { _, newValue in
                         if newValue {
@@ -677,7 +704,6 @@ struct ContentView: View {
                                     ReminderRow(item: item, onComplete: handleComplete)
                                 }
                                 .contextMenu { dateContextMenu(for: item) }
-            .onHover { if $0 { rerollMenuDates() } }
                             }
                         } header: {
                             ReminderSectionHeader(title: "\(dayLabel) - \(listName)", items: items)
@@ -728,7 +754,7 @@ struct ContentView: View {
             ReminderDetailView(reminderID: destination.id)
         }
         .overlay {
-            if service.reminders.isEmpty && !showCompleted && !showUpcoming {
+            if visibleReminders.isEmpty && !showCompleted && !showUpcoming {
                 ContentUnavailableView(
                     "All Clear",
                     systemImage: "checkmark.circle",

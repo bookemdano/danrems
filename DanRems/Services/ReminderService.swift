@@ -541,10 +541,12 @@ final class ReminderService {
         Task { await fetchReminders() }
     }
 
-    func moveOverdueToToday() throws {
+    /// `only` limits the move to those reminders, so hidden long-term ones
+    /// keep their dates instead of being dragged into today unseen.
+    func moveOverdueToToday(only ids: Set<String>? = nil) throws {
         let endOfYesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date().startOfDay)!.endOfDay
         let todayComponents = Calendar.current.dateComponents([.year, .month, .day], from: Date())
-        for item in reminders where item.isOverdue {
+        for item in reminders where item.isOverdue && (ids?.contains(item.id) ?? true) {
             guard let reminder = eventStore.calendarItem(withIdentifier: item.id) as? EKReminder else { continue }
             var components = reminder.dueDateComponents ?? DateComponents()
             components.year = todayComponents.year

@@ -63,6 +63,25 @@ struct ReminderItem: Identifiable, Hashable, Sendable {
         return interval == 1 || unit.isEmpty ? every : "every \(interval)\(unit)"
     }
 
+    /// Slow-moving upkeep Dan doesn't want in front of him every day: anything
+    /// in the "Long Term House" list, plus anything that repeats every 3 months
+    /// or less often (garage shelves, dryer vent, tub edge). Most of those live
+    /// in the default Reminders list, so the list alone hid almost nothing.
+    /// High priority always shows, since that flag means "deal with this now".
+    var isLongTerm: Bool {
+        if isHighPriority { return false }
+        if listName == "Long Term House" { return true }
+        guard let recurrenceFrequency else { return false }
+        let interval = recurrenceInterval ?? 1
+        return switch recurrenceFrequency {
+        case .daily: interval >= 90
+        case .weekly: interval >= 13
+        case .monthly: interval >= 3
+        case .yearly: true
+        @unknown default: false
+        }
+    }
+
     /// EventKit's 1–4 band, which Apple Reminders shows as High (!!!).
     var isHighPriority: Bool {
         (1...4).contains(priority)
